@@ -46,6 +46,23 @@ public class WorkerRegistry {
     }
 
     /**
+     * Conditionally removes a worker only if the current registry entry is the
+     * exact same object as {@code expected}. This prevents a stale handler thread
+     * from removing a newer re-registration's connection.
+     *
+     * @param workerId the UUID of the worker to remove
+     * @param expected the connection instance that must match the current entry
+     * @return {@code true} if the entry was removed, {@code false} if it was
+     *         already replaced by a different connection
+     */
+    public boolean unregisterIfSame(UUID workerId, WorkerConnection expected) {
+        if (workerId == null || expected == null) {
+            return false;
+        }
+        return workers.remove(workerId, expected);
+    }
+
+    /**
      * Looks up a worker by its UUID.
      *
      * @param workerId the UUID to look up

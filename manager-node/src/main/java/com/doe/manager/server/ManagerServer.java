@@ -83,9 +83,14 @@ public class ManagerServer {
 
     /**
      * Handles a single worker connection: reads messages in a loop and dispatches by type.
+     * <p>
+     * Each handler thread tracks its own {@link WorkerConnection} reference so that
+     * cleanup in the {@code finally} block only removes <em>its own</em> registry entry,
+     * preventing a stale thread from evicting a newer re-registration.
      */
     private void handleWorker(Socket socket) {
         UUID workerId = null;
+        WorkerConnection localConnection = null;
         try (socket) {
             var inputStream = socket.getInputStream();
 
@@ -94,12 +99,13 @@ public class ManagerServer {
 
                 switch (message.type()) {
                     case REGISTER_WORKER -> {
-                        workerId = handleRegistration(message, socket);
+                        localConnection = handleRegistration(message, socket);
+                        workerId = localConnection.getId();
                         MDC.put("workerId", workerId.toString());
                     }
                     case HEARTBEAT -> {
                         if (workerId != null) {
-                            handleHeartbeat(workerId);
+                            handleHeartbeat(workerId, localConnection);
                         } else {
                             LOG.warn("Received HEARTBEAT from unregistered connection {}", 
                                     socket.getRemoteSocketAddress());
@@ -117,39 +123,46 @@ public class ManagerServer {
         } catch (IOException e) {
             LOG.error("I/O error handling worker {}", workerId != null ? workerId : "unknown", e);
         } finally {
-            if (workerId != null) {
-                registry.unregister(workerId);
-                LOG.info("Worker {} removed from registry", workerId);
+            if (workerId != null && localConnection != null) {
+                // Conditional remove: only evict if WE are still the registered connection.
+                // If a newer thread re-registered with the same UUID, leave its entry alone.
+                boolean removed = registry.unregisterIfSame(workerId, localConnection);
+                if (removed) {
+                    LOG.info("Worker {} removed from registry", workerId);
+                } else {
+                    LOG.debug("Worker {} was already replaced by a newer connection; skipping removal", workerId);
+                }
             }
             MDC.clear();
         }
     }
 
     /**
-     * Processes a REGISTER_WORKER message: parses the JSON payload, creates a
-     * {@link WorkerConnection}, registers it, and sends back a REGISTER_ACK.
+     * Processes a REGISTER_WORKER message: assigns a manager-generated UUID,
+     * creates a {@link WorkerConnection}, registers it, and sends back a REGISTER_ACK
+     * containing the assigned UUID.
+     * <p>
+     * <b>Security:</b> The manager always generates the UUID server-side.
+     * Any client-supplied {@code workerId} in the payload is ignored. This
+     * prevents UUID spoofing attacks where a malicious client could forge
+     * registrations to evict legitimate workers.
      *
-     * @return the UUID of the registered worker
+     * @return the newly created {@link WorkerConnection}
      */
-    private UUID handleRegistration(Message message, Socket socket) throws IOException {
+    private WorkerConnection handleRegistration(Message message, Socket socket) throws IOException {
+        // Parse payload for metadata only (hostname, etc.) — workerId is ignored
         JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+        String hostname = json.has("hostname") ? json.get("hostname").getAsString() : "unknown";
 
-        UUID workerId;
-        if (json.has("workerId")) {
-            workerId = UUID.fromString(json.get("workerId").getAsString());
-        } else {
-            workerId = UUID.randomUUID();
-        }
+        // Manager always assigns the UUID — never trust the client
+        UUID workerId = UUID.randomUUID();
 
         WorkerConnection connection = new WorkerConnection(workerId, socket);
-        WorkerConnection previous = registry.register(connection);
-        if (previous != null) {
-            LOG.warn("Worker {} re-registered, replacing previous connection", workerId);
-        }
+        registry.register(connection);
 
-        LOG.info("Worker {} connected from {}", workerId, connection.getRemoteAddress());
+        LOG.info("Worker {} connected from {} (hostname: {})", workerId, connection.getRemoteAddress(), hostname);
 
-        // Send REGISTER_ACK back to the worker
+        // Send REGISTER_ACK with the manager-assigned UUID
         JsonObject ackPayload = new JsonObject();
         ackPayload.addProperty("workerId", workerId.toString());
         ackPayload.addProperty("status", "registered");
@@ -159,20 +172,19 @@ public class ManagerServer {
         out.write(ackBytes);
         out.flush();
 
-        return workerId;
+        return connection;
     }
 
     /**
      * Processes a HEARTBEAT message: updates the worker's last-seen timestamp.
+     * <p>
+     * Uses the handler's local {@link WorkerConnection} reference directly,
+     * rather than looking up the registry, to avoid updating a different
+     * connection if a re-registration occurred concurrently.
      */
-    private void handleHeartbeat(UUID workerId) {
-        registry.get(workerId).ifPresentOrElse(
-                connection -> {
-                    connection.updateHeartbeat();
-                    LOG.debug("Heartbeat received from Worker {}", workerId);
-                },
-                () -> LOG.warn("Heartbeat from unknown Worker {}", workerId)
-        );
+    private void handleHeartbeat(UUID workerId, WorkerConnection localConnection) {
+        localConnection.updateHeartbeat();
+        LOG.debug("Heartbeat received from Worker {}", workerId);
     }
 
     /**
