@@ -155,7 +155,7 @@ public class ManagerServer {
                 if (removed) {
                     LOG.info("Worker {} removed from registry", workerId);
                 } else {
-                    LOG.debug("Worker {} was already replaced by a newer connection; skipping removal", workerId);
+                    LOG.debug("Worker {} was already {}", workerId, registry.get(workerId).isPresent() ? "replaced by a newer connection; skipping removal" : "removed by another thread; skipping removal");
                 }
             }
             MDC.clear();

@@ -170,6 +170,7 @@ public class WorkerClient {
             runMainLoop(in, workerId);
         }finally {
             if (writerThread != null) {
+                // queue.take() blocks, so we need to interrupt the writer thread
                 writerThread.interrupt();
             }
             // to avoid calling close() twice by shutdown if socket was already closed by try-with-resources
