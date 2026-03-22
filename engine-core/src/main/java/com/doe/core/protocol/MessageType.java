@@ -1,0 +1,41 @@
+package com.doe.core.protocol;
+
+/**
+ * Defines the message types used in the Manager ↔ Worker binary protocol.
+ * <p>
+ * Wire format: {@code [1B Type][4B Length][NB Payload]}
+ */
+public enum MessageType {
+
+    REGISTER_WORKER((byte) 0x01),
+    HEARTBEAT((byte) 0x02),
+    ASSIGN_JOB((byte) 0x03),
+    JOB_RESULT((byte) 0x04),
+    REGISTER_ACK((byte) 0x05);
+
+    private final byte code;
+
+    MessageType(byte code) {
+        this.code = code;
+    }
+
+    public byte getCode() {
+        return code;
+    }
+
+    /**
+     * Resolves a {@link MessageType} from its wire byte code.
+     *
+     * @param code the single-byte message type code
+     * @return the matching {@link MessageType}
+     * @throws IllegalArgumentException if the code is unknown
+     */
+    public static MessageType fromCode(byte code) {
+        for (MessageType type : values()) {
+            if (type.code == code) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("Unknown message type code: 0x%02X".formatted(code));
+    }
+}

@@ -21,6 +21,20 @@ ManagerServer
 ```
 
 ## Acceptance Criteria
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Placeholder main class for the engine-core module.
+ */
+public class Main {
+
+    private static final Logger LOG = LoggerFactory.getLogger(Main.class);
+
+    public static void main(String[] args) {
+        LOG.info("Module: engine-core");
+        System.out.println("engine-core module loaded.");
+    }
 
 - [ ] `ManagerServer` binds to a configurable port (default `9090`)
 - [ ] Each accepted connection spawns a Virtual Thread (not a platform thread)

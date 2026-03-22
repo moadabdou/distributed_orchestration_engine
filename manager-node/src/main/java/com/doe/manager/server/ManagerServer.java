@@ -1,0 +1,307 @@
+package com.doe.manager.server;
+
+import com.doe.core.model.WorkerConnection;
+import com.doe.core.protocol.Message;
+import com.doe.core.protocol.MessageType;
+import com.doe.core.protocol.ProtocolDecoder;
+import com.doe.core.protocol.ProtocolEncoder;
+import com.doe.core.registry.WorkerRegistry;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.time.Instant;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Central manager server that accepts worker TCP connections using Java 21 Virtual Threads.
+ * <p>
+ * Each accepted connection is handled in a dedicated Virtual Thread. The server
+ * maintains a thread-safe {@link WorkerRegistry} to track connected workers.
+ * <p>
+ * Wire protocol: {@code [1B Type][4B Length][NB Payload]}
+ */
+public class ManagerServer {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ManagerServer.class);
+    private static final Gson GSON = new Gson();
+
+    private final int port;
+    private final WorkerRegistry registry;
+    private final long heartbeatCheckIntervalMs;
+    private final long heartbeatTimeoutMs;
+
+    private volatile boolean running;
+    private ServerSocket serverSocket;
+    private ScheduledExecutorService monitorExecutor;
+
+    /**
+     * Creates a new ManagerServer with default heartbeat configuration.
+     *
+     * @param port the TCP port to bind to
+     */
+    public ManagerServer(int port) {
+        this(port, 5000, 15000);
+    }
+
+    /**
+     * Creates a new ManagerServer.
+     *
+     * @param port                     the TCP port to bind to
+     * @param heartbeatCheckIntervalMs how frequently to check for dead workers (in ms)
+     * @param heartbeatTimeoutMs       how long without a heartbeat before a worker is marked DEAD (in ms)
+     */
+    public ManagerServer(int port, long heartbeatCheckIntervalMs, long heartbeatTimeoutMs) {
+        if (port < 0 || port > 65535) {
+            throw new IllegalArgumentException("Port must be between 0 and 65535, got: " + port);
+        }
+        if (heartbeatCheckIntervalMs <= 0 || heartbeatTimeoutMs <= 0) {
+            throw new IllegalArgumentException("Heartbeat intervals must be positive");
+        }
+        this.port = port;
+        this.heartbeatCheckIntervalMs = heartbeatCheckIntervalMs;
+        this.heartbeatTimeoutMs = heartbeatTimeoutMs;
+        this.registry = new WorkerRegistry();
+    }
+
+    /**
+     * Starts the server, binding to the configured port and entering the accept loop.
+     * <p>
+     * This method blocks until {@link #shutdown()} is called or an error occurs.
+     *
+     * @throws IOException if the server socket cannot be bound
+     */
+    public void start() throws IOException {
+        serverSocket = new ServerSocket(port);
+        serverSocket.setReuseAddress(true);
+        running = true;
+
+        LOG.info("ManagerServer started on port {}", serverSocket.getLocalPort());
+
+        startHeartbeatMonitor();
+
+        while (running) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                Thread.ofVirtual()
+                        .name("worker-handler-", Thread.currentThread().threadId())
+                        .start(() -> handleWorker(clientSocket));
+            } catch (SocketException e) {
+                if (running) {
+                    LOG.error("Error accepting connection", e);
+                }
+                // If !running, this is expected from shutdown() closing the ServerSocket
+            }
+        }
+    }
+
+    /**
+     * Handles a single worker connection: reads messages in a loop and dispatches by type.
+     * <p>
+     * Each handler thread tracks its own {@link WorkerConnection} reference so that
+     * cleanup in the {@code finally} block only removes <em>its own</em> registry entry,
+     * preventing a stale thread from evicting a newer re-registration.
+     */
+    private void handleWorker(Socket socket) {
+        UUID workerId = null;
+        WorkerConnection localConnection = null;
+        try (socket) {
+            var inputStream = socket.getInputStream();
+
+            while (running && !socket.isClosed()) {
+                Message message = ProtocolDecoder.decode(inputStream);
+
+                switch (message.type()) {
+                    case REGISTER_WORKER -> {
+                        localConnection = handleRegistration(message, socket);
+                        workerId = localConnection.getId();
+                        MDC.put("workerId", workerId.toString());
+                    }
+                    case HEARTBEAT -> {
+                        if (workerId != null) {
+                            handleHeartbeat(workerId, localConnection);
+                        } else {
+                            LOG.warn("Received HEARTBEAT from unregistered connection {}", 
+                                    socket.getRemoteSocketAddress());
+                        }
+                    }
+                    default -> LOG.warn("Unexpected message type: {}", message.type());
+                }
+            }
+        } catch (EOFException e) {
+            LOG.info("Worker {} disconnected (stream closed)", workerId != null ? workerId : "unknown");
+        } catch (SocketException e) {
+            if (running) {
+                LOG.info("Worker {} connection reset: {}", workerId != null ? workerId : "unknown", e.getMessage());
+            }
+        } catch (IOException e) {
+            LOG.error("I/O error handling worker {}", workerId != null ? workerId : "unknown", e);
+        } finally {
+            if (workerId != null && localConnection != null) {
+                // Conditional remove: only evict if WE are still the registered connection.
+                // If a newer thread re-registered with the same UUID, leave its entry alone.
+                boolean removed = registry.unregisterIfSame(workerId, localConnection);
+                if (removed) {
+                    LOG.info("Worker {} removed from registry", workerId);
+                } else {
+                    LOG.debug("Worker {} was already {}", workerId, registry.get(workerId).isPresent() ? "replaced by a newer connection; skipping removal" : "removed by another thread; skipping removal");
+                }
+            }
+            MDC.clear();
+        }
+    }
+
+    /**
+     * Processes a REGISTER_WORKER message: assigns a manager-generated UUID,
+     * creates a {@link WorkerConnection}, registers it, and sends back a REGISTER_ACK
+     * containing the assigned UUID.
+     * <p>
+     * <b>Security:</b> The manager always generates the UUID server-side.
+     * Any client-supplied {@code workerId} in the payload is ignored. This
+     * prevents UUID spoofing attacks where a malicious client could forge
+     * registrations to evict legitimate workers.
+     *
+     * @return the newly created {@link WorkerConnection}
+     */
+    private WorkerConnection handleRegistration(Message message, Socket socket) throws IOException {
+        // Parse payload for metadata only (hostname, etc.) — workerId is ignored
+        JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+        String hostname = json.has("hostname") ? json.get("hostname").getAsString() : "unknown";
+
+        // Manager always assigns the UUID — never trust the client
+        UUID workerId = UUID.randomUUID();
+
+        WorkerConnection connection = new WorkerConnection(workerId, socket);
+        registry.register(connection);
+
+        LOG.info("Worker {} connected from {} (hostname: {})", workerId, connection.getRemoteAddress(), hostname);
+
+        // Send REGISTER_ACK with the manager-assigned UUID
+        JsonObject ackPayload = new JsonObject();
+        ackPayload.addProperty("workerId", workerId.toString());
+        ackPayload.addProperty("status", "registered");
+
+        byte[] ackBytes = ProtocolEncoder.encode(MessageType.REGISTER_ACK, GSON.toJson(ackPayload));
+        OutputStream out = socket.getOutputStream();
+        out.write(ackBytes);
+        out.flush();
+
+        return connection;
+    }
+
+    /**
+     * Processes a HEARTBEAT message: updates the worker's last-seen timestamp.
+     * <p>
+     * Uses the handler's local {@link WorkerConnection} reference directly,
+     * rather than looking up the registry, to avoid updating a different
+     * connection if a re-registration occurred concurrently.
+     */
+    private void handleHeartbeat(UUID workerId, WorkerConnection localConnection) {
+        localConnection.updateHeartbeat();
+        LOG.debug("Heartbeat received from Worker {}", workerId);
+    }
+
+    /**
+     * Starts the scheduled HeartbeatMonitor task.
+     */
+    private void startHeartbeatMonitor() {
+        monitorExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread t = new Thread(runnable, "heartbeat-monitor");
+            t.setDaemon(true);
+            return t;
+        });
+
+        monitorExecutor.scheduleAtFixedRate(() -> {
+            try {
+                long now = Instant.now().toEpochMilli();
+                registry.getAll().values().forEach(worker -> {
+                    long elapsed = now - worker.getLastHeartbeat().toEpochMilli();
+                    if (elapsed > heartbeatTimeoutMs) {
+                        LOG.warn("Worker {} marked DEAD (no heartbeat for {} ms)", worker.getId(), elapsed);
+                        try {
+                            if (!worker.getSocket().isClosed()) {
+                                worker.getSocket().close();
+                            }
+                        } catch (IOException e) {
+                            LOG.warn("Error closing dead worker {} socket", worker.getId(), e);
+                        }
+                        // Remove from registry immediately to prevent relying on the handler thread's finally block
+                        registry.unregisterIfSame(worker.getId(), worker);
+                    }
+                });
+            } catch (Exception e) {
+                LOG.error("Unexpected error in heartbeat monitor", e);
+            }
+        }, heartbeatCheckIntervalMs, heartbeatCheckIntervalMs, TimeUnit.MILLISECONDS);
+        
+        LOG.info("HeartbeatMonitor started (interval: {} ms, timeout: {} ms)", 
+                heartbeatCheckIntervalMs, heartbeatTimeoutMs);
+    }
+
+    /**
+     * Gracefully shuts down the server: closes the server socket and all worker connections.
+     */
+    public void shutdown() {
+        LOG.info("Shutting down ManagerServer...");
+        running = false;
+
+        if (monitorExecutor != null && !monitorExecutor.isShutdown()) {
+            monitorExecutor.shutdownNow();
+        }
+
+        // Close the server socket to break the accept() loop
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            LOG.error("Error closing server socket", e);
+        }
+
+        // Close all registered worker connections
+        registry.getAll().forEach((id, connection) -> {
+            try {
+                connection.getSocket().close();
+            } catch (IOException e) {
+                LOG.error("Error closing socket for Worker {}", id, e);
+            }
+        });
+
+        LOG.info("ManagerServer shut down. Final registry size: {}", registry.size());
+    }
+
+    /**
+     * Returns the worker registry (primarily for testing).
+     */
+    public WorkerRegistry getRegistry() {
+        return registry;
+    }
+
+    /**
+     * Returns the actual port the server is listening on.
+     * Useful when started with port 0 (OS-assigned).
+     *
+     * @return the local port, or -1 if not yet started
+     */
+    public int getLocalPort() {
+        return (serverSocket != null) ? serverSocket.getLocalPort() : -1;
+    }
+
+    /**
+     * Returns whether the server is currently running.
+     */
+    public boolean isRunning() {
+        return running;
+    }
+}
