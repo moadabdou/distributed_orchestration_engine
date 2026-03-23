@@ -1,5 +1,7 @@
 package com.doe.core.model;
 
+import com.doe.core.model.WorkerStatus;
+
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.Instant;
@@ -19,6 +21,9 @@ public class WorkerConnection {
     private final Socket socket;
     private final Instant connectedAt;
     private final AtomicReference<Instant> lastHeartbeat;
+    private final AtomicReference<WorkerStatus> status;
+    /** The job currently executing on this worker; {@code null} when IDLE. */
+    private final AtomicReference<Job> currentJob;
 
     /**
      * Creates a new worker connection.
@@ -37,6 +42,8 @@ public class WorkerConnection {
         this.socket = socket;
         this.connectedAt = Instant.now();
         this.lastHeartbeat = new AtomicReference<>(this.connectedAt);
+        this.status = new AtomicReference<>(WorkerStatus.IDLE);
+        this.currentJob = new AtomicReference<>(null);
     }
 
     public UUID getId() {
@@ -60,6 +67,51 @@ public class WorkerConnection {
      */
     public void updateHeartbeat() {
         lastHeartbeat.set(Instant.now());
+    }
+
+    /** Returns the current worker status. */
+    public WorkerStatus getStatus() {
+        return status.get();
+    }
+
+    /** Returns {@code true} if this worker is currently IDLE. */
+    public boolean isIdle() {
+        return status.get() == WorkerStatus.IDLE;
+    }
+
+    /**
+     * Atomically transitions this worker from IDLE to BUSY.
+     *
+     * @return {@code true} if the CAS succeeded (was IDLE, now BUSY);
+     *         {@code false} if it was already BUSY
+     */
+    public boolean trySetBusy() {
+        return status.compareAndSet(WorkerStatus.IDLE, WorkerStatus.BUSY);
+    }
+
+    /** Sets the worker status back to IDLE and clears the current job reference. */
+    public void setIdle() {
+        currentJob.set(null);
+        status.set(WorkerStatus.IDLE);
+    }
+
+    /**
+     * Returns the {@link Job} currently assigned to this worker,
+     * or {@code null} if the worker is idle.
+     * <p>
+     * Used by the manager to correlate incoming {@code JOB_RESULT} messages
+     * with the originating job without a separate lookup table.
+     */
+    public Job getCurrentJob() {
+        return currentJob.get();
+    }
+
+    /**
+     * Sets the job currently executing on this worker.
+     * Call with {@code null} to clear (equivalent to what {@link #setIdle()} does).
+     */
+    public void setCurrentJob(Job job) {
+        currentJob.set(job);
     }
 
     /**

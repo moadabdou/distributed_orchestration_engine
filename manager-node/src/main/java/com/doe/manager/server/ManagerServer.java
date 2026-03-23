@@ -6,6 +6,8 @@ import com.doe.core.protocol.MessageType;
 import com.doe.core.protocol.ProtocolDecoder;
 import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.registry.WorkerRegistry;
+import com.doe.manager.scheduler.JobQueue;
+import com.doe.manager.scheduler.JobScheduler;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.slf4j.Logger;
@@ -41,6 +43,7 @@ public class ManagerServer {
     private final WorkerRegistry registry;
     private final long heartbeatCheckIntervalMs;
     private final long heartbeatTimeoutMs;
+    private final JobScheduler jobScheduler;
 
     private volatile boolean running;
     private ServerSocket serverSocket;
@@ -73,6 +76,7 @@ public class ManagerServer {
         this.heartbeatCheckIntervalMs = heartbeatCheckIntervalMs;
         this.heartbeatTimeoutMs = heartbeatTimeoutMs;
         this.registry = new WorkerRegistry();
+        this.jobScheduler = new JobScheduler(new JobQueue(), this.registry);
     }
 
     /**
@@ -90,6 +94,7 @@ public class ManagerServer {
         LOG.info("ManagerServer started on port {}", serverSocket.getLocalPort());
 
         startHeartbeatMonitor();
+        jobScheduler.start();
 
         while (running) {
             try {
@@ -256,6 +261,8 @@ public class ManagerServer {
         LOG.info("Shutting down ManagerServer...");
         running = false;
 
+        jobScheduler.stop();
+
         if (monitorExecutor != null && !monitorExecutor.isShutdown()) {
             monitorExecutor.shutdownNow();
         }
@@ -286,6 +293,13 @@ public class ManagerServer {
      */
     public WorkerRegistry getRegistry() {
         return registry;
+    }
+
+    /**
+     * Returns the job scheduler (primarily for testing).
+     */
+    public JobScheduler getJobScheduler() {
+        return jobScheduler;
     }
 
     /**
