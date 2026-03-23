@@ -11,7 +11,7 @@ import java.util.Set;
  *                 │            │
  *                 │            └──→ FAILED
  *                 │
- *                 └──→ PENDING  (re-queue on timeout)
+ *                 └──→ PENDING  (re-queue on timeout, failed assignment)
  * </pre>
  */
 public enum JobStatus {
