@@ -94,4 +94,21 @@ public class WorkerRegistry {
     public boolean isEmpty() {
         return workers.isEmpty();
     }
+
+    /**
+     * Finds and atomically reserves the first IDLE worker.
+     * <p>
+     * Uses a CAS on each {@link com.doe.core.model.WorkerConnection} so that at most
+     * one scheduler thread can claim any given worker simultaneously.
+     *
+     * @return the reserved (now BUSY) connection, or {@code null} if none is available
+     */
+    public WorkerConnection findIdle() {
+        for (WorkerConnection w : workers.values()) {
+            if (w.trySetBusy()) {
+                return w;
+            }
+        }
+        return null;
+    }
 }

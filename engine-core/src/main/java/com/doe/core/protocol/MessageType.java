@@ -11,7 +11,8 @@ public enum MessageType {
     HEARTBEAT((byte) 0x02),
     ASSIGN_JOB((byte) 0x03),
     JOB_RESULT((byte) 0x04),
-    REGISTER_ACK((byte) 0x05);
+    REGISTER_ACK((byte) 0x05),
+    JOB_RUNNING((byte) 0x06);
 
     private final byte code;
 

@@ -25,7 +25,7 @@ When the Manager crashes and restarts, it must recover orphaned jobs from the da
 - [ ] `StartupRecoveryService` with `@PostConstruct` or `ApplicationReadyEvent` listener
 - [ ] Queries DB for jobs in `ASSIGNED` or `RUNNING` state
 - [ ] Resets them to `PENDING`, clears `worker_id`, updates `updated_at`
-- [ ] Enqueues recovered jobs into `JobQueue`
+- [ ] Enqueues recovered jobs into `JobQueue` (ensuring in-memory queue state is perfectly rebuilt from persistent storage)
 - [ ] All workers in DB set to `OFFLINE` on startup (stale connections)
 - [ ] Logged with count: `"Startup recovery: reset N jobs to PENDING"`
 - [ ] **Test:** Submit 5 jobs → kill Manager mid-execution → restart → jobs resume and complete

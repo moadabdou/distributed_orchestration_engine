@@ -1,5 +1,7 @@
 package com.doe.worker.client;
 
+import com.doe.core.executor.DummyTaskExecutor;
+import com.doe.core.executor.TaskExecutor;
 import com.doe.core.protocol.Message;
 import com.doe.core.protocol.MessageType;
 import com.doe.core.protocol.ProtocolDecoder;
@@ -20,7 +22,10 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 
@@ -41,6 +46,7 @@ public class WorkerClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(WorkerClient.class);
     private static final Gson GSON = new Gson();
+    private static final TaskExecutor EXECUTOR = new DummyTaskExecutor();
 
     /** Backoff: 1 s → 2 s → 4 s … capped at 30 s, unlimited attempts. */
     private static final RetryPolicy RETRY_POLICY =
@@ -167,7 +173,7 @@ public class WorkerClient {
             Thread.ofVirtual().name("heartbeat-" + workerId).start(() -> runHeartbeatLoop(s, egressQueue, workerId));
 
             // ── 4. Main command loop ──────────────────────────────────────────
-            runMainLoop(in, workerId);
+            runMainLoop(in, egressQueue, workerId);
         }finally {
             if (writerThread != null) {
                 // queue.take() blocks, so we need to interrupt the writer thread
@@ -183,7 +189,7 @@ public class WorkerClient {
      * Returns normally on disconnect (EOF or socket close); calling code will
      * then attempt reconnection if {@link #running} is still {@code true}.
      */
-    private void runMainLoop(InputStream in, UUID workerId) throws IOException {
+    private void runMainLoop(InputStream in, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) throws IOException {
         LOG.info("Worker {} entering main loop, waiting for commands...", workerId);
 
         while (running) {
@@ -201,15 +207,84 @@ public class WorkerClient {
             }
 
             switch (message.type()) {
-                case ASSIGN_JOB -> {
-                    LOG.info("Worker {}: received ASSIGN_JOB — payload: {}",
-                            workerId, message.payloadAsString());
-                    // TODO (Issue #008): execute the job and send JOB_RESULT
-                }
+                case ASSIGN_JOB -> handleAssignJob(message, egressQueue, workerId);
                 default -> LOG.warn("Worker {}: unexpected message type: {}",
                         workerId, message.type());
             }
         }
+    }
+
+    /**
+     * Handles an {@code ASSIGN_JOB} message end-to-end:
+     * <ol>
+     *   <li>Sends {@code JOB_RUNNING { jobId }} to the manager.</li>
+     *   <li>Executes the task payload via {@link DummyTaskExecutor} with a 60-second timeout.</li>
+     *   <li>Sends {@code JOB_RESULT { jobId, status, output }} with COMPLETED or FAILED.</li>
+     * </ol>
+     * Execution is synchronous on the Virtual-Thread connection thread (no extra thread needed).
+     */
+    private void handleAssignJob(Message message, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) {
+        JsonObject envelope = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+        String jobId = envelope.has("jobId") ? envelope.get("jobId").getAsString() : "unknown";
+        String payloadJson = envelope.has("payload") ? GSON.toJson(envelope.get("payload")) : "{}";
+        long timeoutMs = envelope.has("timeoutMs") ? envelope.get("timeoutMs").getAsLong() : 60000;
+
+        LOG.info("Worker {}: received ASSIGN_JOB — jobId={}, timeoutMs={}", workerId, jobId, timeoutMs);
+
+        // ── 1. Notify manager that we are now executing ───────────────────────
+        try {
+            JsonObject runningBody = new JsonObject();
+            runningBody.addProperty("jobId", jobId);
+            byte[] runningBytes = ProtocolEncoder.encode(MessageType.JOB_RUNNING, GSON.toJson(runningBody));
+            egressQueue.put(new OutboundMessage(runningBytes,
+                    e -> LOG.error("Worker {}: failed to send JOB_RUNNING for job {}", workerId, jobId, e)));
+            LOG.info("Worker {}: sent JOB_RUNNING for job {}", workerId, jobId);
+        } catch (InterruptedException e) {
+            // re-add interrupted flag to current thread
+            Thread.currentThread().interrupt();
+            LOG.warn("Worker {}: interrupted while sending JOB_RUNNING for job {}", workerId, jobId);
+            return;
+        }
+
+        // ── 2. Execute the task with a 60-second timeout ─────────────────────
+        String status;
+        String output;
+        try {
+            String result = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return EXECUTOR.execute(payloadJson);
+                        } catch (Exception ex) {
+                            throw new CompletionException(ex);
+                        }
+                    })
+                    .orTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .join();
+            status = "COMPLETED";
+            output = result;
+            LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobId, output);
+        } catch (java.util.concurrent.CancellationException | CompletionException ex) {
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            status = "FAILED";
+            output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+            LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
+        }
+
+        // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
+        try {
+            JsonObject resultBody = new JsonObject();
+            resultBody.addProperty("jobId", jobId);
+            resultBody.addProperty("status", status);
+            resultBody.addProperty("output", output);
+            byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
+            egressQueue.put(new OutboundMessage(resultBytes,
+                    e -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, e)));
+            LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
+        }
+        // Worker stays in the loop — ready for the next ASSIGN_JOB
     }
 
     /**

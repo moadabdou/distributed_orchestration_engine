@@ -38,3 +38,9 @@ HeartbeatMonitor detects dead worker
 - This is the single most important reliability feature — get it right
 - Use the Observer pattern: `HeartbeatMonitor` → `WorkerDeathHandler` → avoids tight coupling
 - Consider adding a `retryCount` to `Job` to prevent infinite re-queue loops (cap at 3 retries, then `FAILED`)
+
+## Known Flaws & Oversights (Added Post-Analysis)
+
+- **Unbounded Queue:** `JobQueue` uses an unbounded `ConcurrentLinkedDeque`. Submitting too many jobs can lead to `OutOfMemoryError`.
+- **At-Least-Once Execution:** If a worker finishes a job but crashes right before sending `JOB_RESULT`, the job will be re-executed. This requires tasks to be idempotent.
+- **Worker Hangs:** The `JobTimeoutMonitor` recovers jobs that take too long, but `WorkerClient` relies solely on heartbeat write failures. Silent network drops might cause it to hang on read.
