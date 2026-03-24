@@ -1,6 +1,6 @@
 # 🗺️ Project Roadmap — Distributed Job Orchestration Platform
 
-> **29 issues** across **6 milestones** · Estimated **25–32 working days** total
+> **37 issues** across **7 milestones** · Estimated **32–40 working days** total
 
 ---
 
@@ -10,10 +10,11 @@
 |---|-----------|--------|----------|--------------|
 | **1** | [Core Engine — TCP & Workers](milestone-1-core-engine/details.md) | #001–#005 (5) | 5–7 days | None |
 | **2** | [Job Scheduling & Fault Tolerance](milestone-2-job-scheduling-fault-tolerance/details.md) | #006–#010 (5) | 4–5 days | M1 |
-| **3** | [Spring Boot Management Plane](milestone-3-spring-boot-management-plane/details.md) | #011–#015 (5) | 5–6 days | M1, M2 |
-| **4** | [Observability Dashboard (TypeScript)](milestone-4-observability-dashboard/details.md) | #016–#020 (5) | 4–5 days | M3 |
-| **5** | [Dockerization & DevOps](milestone-5-dockerization-devops/details.md) | #021–#024 (4) | 3–4 days | M1–M4 |
-| **6** | [Testing & Production Hardening](milestone-6-testing-hardening/details.md) | #025–#029 (5) | 4–5 days | M1–M5 |
+| **3** | [Spring Boot Management Plane](milestone-3-spring-boot-management-plane/details.md) | #011–#019 (9) | 8–9 days | M1, M2 |
+| **4** | [Observability Dashboard (TypeScript)](milestone-4-observability-dashboard/details.md) | #020–#024 (5) | 4–5 days | M3 |
+| **5** | [Scaling & Concurrency](milestone-5-scaling-concurrency/details.md) | #025–#028 (4) | 4–5 days | M1–M4 |
+| **6** | [Dockerization & DevOps](milestone-6-dockerization-devops/details.md) | #029–#032 (4) | 3–4 days | M1–M5 |
+| **7** | [Testing & Production Hardening](milestone-7-testing-hardening/details.md) | #033–#037 (5) | 4–5 days | M1–M6 |
 
 ---
 
@@ -25,11 +26,12 @@ graph LR
     M1 --> M3[M3: Spring Boot]
     M2 --> M3
     M3 --> M4[M4: Dashboard]
-    M1 --> M5[M5: Docker]
+    M1 --> M5[M5: Scaling & Concurrency]
     M2 --> M5
     M3 --> M5
     M4 --> M5
-    M5 --> M6[M6: Testing & Hardening]
+    M5 --> M6[M6: Dockerization]
+    M6 --> M7[M7: Testing & Hardening]
 ```
 
 ---
@@ -62,29 +64,41 @@ graph LR
 | [#013](milestone-3-spring-boot-management-plane/issue-013-rest-api-controllers.md) | REST API Controllers (Jobs & Workers) | 🔴 High | 1d |
 | [#014](milestone-3-spring-boot-management-plane/issue-014-engine-db-sync.md) | Engine ↔ Database Event Sync | 🔴 High | 1d |
 | [#015](milestone-3-spring-boot-management-plane/issue-015-startup-recovery.md) | Manager Startup Recovery from DB | 🔥 Critical | 0.5d |
+| [#016](milestone-3-spring-boot-management-plane/issue-016-worker-registry-optimisation.md) | Worker Registry Optimisation | 🟡 Medium | 0.5d |
+| [#017](milestone-3-spring-boot-management-plane/issue-017-network-hardening.md) | Worker Client & Manager Queue Hardening | 🟡 Medium | 0.5d |
+| [#018](milestone-3-spring-boot-management-plane/issue-018-worker-authentication.md) | Worker Authentication & Security | 🟡 Medium | 0.5d |
+| [#019](milestone-3-spring-boot-management-plane/issue-019-pluggable-task-executor.md) | Pluggable Task Executor Architecture | 🔴 High | 1.5d |
 
 ### Milestone 4 — Observability Dashboard
 | Issue | Title | Priority | Estimate |
 |-------|-------|----------|----------|
-| [#016](milestone-4-observability-dashboard/issue-016-scaffold-frontend.md) | Scaffold React + TypeScript Project | 🔴 High | 0.5d |
-| [#017](milestone-4-observability-dashboard/issue-017-api-client-service.md) | Typed API Client Service | 🔴 High | 0.5d |
-| [#018](milestone-4-observability-dashboard/issue-018-workers-view.md) | Workers View: Live Worker Grid | 🔴 High | 1d |
-| [#019](milestone-4-observability-dashboard/issue-019-jobs-view.md) | Jobs View: Filterable Job List | 🔴 High | 1d |
-| [#020](milestone-4-observability-dashboard/issue-020-dashboard-overview.md) | Dashboard Overview & Navigation Shell | 🟡 Medium | 1d |
+| [#020](milestone-4-observability-dashboard/issue-020-scaffold-frontend.md) | Scaffold React + TypeScript Project | 🔴 High | 0.5d |
+| [#021](milestone-4-observability-dashboard/issue-021-api-client-service.md) | Typed API Client Service | 🔴 High | 0.5d |
+| [#022](milestone-4-observability-dashboard/issue-022-workers-view.md) | Workers View: Live Worker Grid | 🔴 High | 1d |
+| [#023](milestone-4-observability-dashboard/issue-023-jobs-view.md) | Jobs View: Filterable Job List | 🔴 High | 1d |
+| [#024](milestone-4-observability-dashboard/issue-024-dashboard-overview.md) | Dashboard Overview & Navigation Shell | 🟡 Medium | 1d |
 
-### Milestone 5 — Dockerization & DevOps
+### Milestone 5 — Scaling & Concurrency
 | Issue | Title | Priority | Estimate |
 |-------|-------|----------|----------|
-| [#021](milestone-5-dockerization-devops/issue-021-manager-dockerfile.md) | Dockerfile for Spring Boot Manager | 🔴 High | 0.5d |
-| [#022](milestone-5-dockerization-devops/issue-022-worker-dockerfile.md) | Dockerfile for Java Worker | 🔴 High | 0.5d |
-| [#023](milestone-5-dockerization-devops/issue-023-dashboard-dockerfile.md) | Dockerfile for Dashboard (Nginx) | 🔴 High | 0.5d |
-| [#024](milestone-5-dockerization-devops/issue-024-docker-compose.md) | Docker Compose Orchestration | 🔥 Critical | 1d |
+| [#025](milestone-5-scaling-concurrency/issue-025-async-worker-client.md) | Asynchronous Worker Execution | 🔴 High | 1d |
+| [#026](milestone-5-scaling-concurrency/issue-026-concurrent-job-assignments.md) | Concurrent Job Assignments per Worker | 🔴 High | 1d |
+| [#027](milestone-5-scaling-concurrency/issue-027-cancel-job-command.md) | Manager-Initiated Cancel Job Command | 🔴 High | 1d |
+| [#028](milestone-5-scaling-concurrency/issue-028-resource-aware-scheduler.md) | Resource-Aware Scheduler | 🟡 Medium | 1.5d |
 
-### Milestone 6 — Testing & Hardening
+### Milestone 6 — Dockerization & DevOps
 | Issue | Title | Priority | Estimate |
 |-------|-------|----------|----------|
-| [#025](milestone-6-testing-hardening/issue-025-structured-logging.md) | Structured Logging with MDC | 🔴 High | 0.5d |
-| [#026](milestone-6-testing-hardening/issue-026-integration-tests.md) | Integration Test Suite | 🔴 High | 1.5d |
-| [#027](milestone-6-testing-hardening/issue-027-chaos-testing.md) | Chaos Testing Harness | 🔥 Critical | 1d |
-| [#028](milestone-6-testing-hardening/issue-028-metrics-endpoint.md) | Metrics Endpoint (Actuator) | 🟡 Medium | 0.5d |
-| [#029](milestone-6-testing-hardening/issue-029-documentation.md) | Project Documentation & Architecture | 🟡 Medium | 1d |
+| [#029](milestone-6-dockerization-devops/issue-029-manager-dockerfile.md) | Dockerfile for Spring Boot Manager | 🔴 High | 0.5d |
+| [#030](milestone-6-dockerization-devops/issue-030-worker-dockerfile.md) | Dockerfile for Java Worker | 🔴 High | 0.5d |
+| [#031](milestone-6-dockerization-devops/issue-031-dashboard-dockerfile.md) | Dockerfile for Dashboard (Nginx) | 🔴 High | 0.5d |
+| [#032](milestone-6-dockerization-devops/issue-032-docker-compose.md) | Docker Compose Orchestration | 🔥 Critical | 1d |
+
+### Milestone 7 — Testing & Hardening
+| Issue | Title | Priority | Estimate |
+|-------|-------|----------|----------|
+| [#033](milestone-7-testing-hardening/issue-033-structured-logging.md) | Structured Logging with MDC | 🔴 High | 0.5d |
+| [#034](milestone-7-testing-hardening/issue-034-integration-tests.md) | Integration Test Suite | 🔴 High | 1.5d |
+| [#035](milestone-7-testing-hardening/issue-035-chaos-testing.md) | Chaos Testing Harness | 🔥 Critical | 1d |
+| [#036](milestone-7-testing-hardening/issue-036-metrics-endpoint.md) | Metrics Endpoint (Actuator) | 🟡 Medium | 0.5d |
+| [#037](milestone-7-testing-hardening/issue-037-documentation.md) | Project Documentation & Architecture | 🟡 Medium | 1d |
