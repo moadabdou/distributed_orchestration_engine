@@ -3,10 +3,8 @@ package com.doe.manager.server;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.worker.client.WorkerClient;
-import com.doe.manager.scheduler.JobQueue;
 import org.junit.jupiter.api.*;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,7 +41,6 @@ class JobExecutionIntegrationTest {
         Thread.sleep(100); // let accept loop open
 
         worker = new WorkerClient("localhost", server.getLocalPort(), 3000);
-        CountDownLatch workerRegistered = new CountDownLatch(1);
         workerThread = Thread.ofVirtual().start(worker::start);
 
         // Wait until the worker registers (registry has 1 entry)

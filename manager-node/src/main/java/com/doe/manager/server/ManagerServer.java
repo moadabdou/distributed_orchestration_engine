@@ -10,8 +10,6 @@ import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.registry.WorkerRegistry;
 import com.doe.core.registry.JobRegistry;
 import com.doe.core.registry.WorkerDeathListener;
-import com.doe.manager.scheduler.CrashRecoveryHandler;
-import com.doe.manager.scheduler.JobQueue;
 import com.doe.manager.scheduler.JobScheduler;
 import com.doe.manager.scheduler.JobTimeoutMonitor;
 import com.google.gson.Gson;

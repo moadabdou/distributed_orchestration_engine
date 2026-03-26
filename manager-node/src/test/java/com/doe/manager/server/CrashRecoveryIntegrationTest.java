@@ -5,8 +5,6 @@ import com.doe.core.model.JobStatus;
 import com.doe.worker.client.WorkerClient;
 import com.doe.manager.scheduler.JobQueue;
 import org.junit.jupiter.api.*;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
