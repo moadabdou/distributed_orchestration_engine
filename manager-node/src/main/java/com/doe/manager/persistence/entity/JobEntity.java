@@ -1,8 +1,9 @@
 package com.doe.manager.persistence.entity;
 
 import com.doe.core.model.JobStatus;
-import com.doe.manager.persistence.converter.JsonbConverter;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,8 +12,8 @@ import java.util.UUID;
  * JPA entity representing a job stored in the {@code jobs} table.
  *
  * <p>The {@code payload} column uses PostgreSQL {@code JSONB} type via
- * {@link JsonbConverter}, which wraps the String in a {@code PGobject}
- * so the JDBC driver sends the correct type OID.
+ * {@link JdbcTypeCode} with {@link SqlTypes#JSON}, letting Hibernate 6 handle
+ * the JSON type mapping without any custom converter.
  *
  * <p>Timestamps ({@code createdAt}, {@code updatedAt}) are set explicitly
  * from the domain {@link com.doe.core.model.Job} object — the DB acts as an
@@ -37,8 +38,8 @@ public class JobEntity {
     @Column(name = "status", nullable = false, length = 20)
     private JobStatus status;
 
-    /** JSON payload stored as PostgreSQL JSONB via {@link JsonbConverter}. */
-    @Convert(converter = JsonbConverter.class)
+    /** JSON payload stored as PostgreSQL JSONB. */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private String payload;
 
