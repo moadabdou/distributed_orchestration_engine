@@ -1,5 +1,6 @@
 package com.doe.manager.server;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.WorkerConnection;
@@ -21,6 +22,7 @@ import org.slf4j.MDC;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -57,6 +59,7 @@ public class ManagerServer implements SmartLifecycle {
     private final long heartbeatTimeoutMs;
     private final JobScheduler jobScheduler;
     private final JobTimeoutMonitor jobTimeoutMonitor;
+    private final EngineEventListener eventListener;
     private final List<WorkerDeathListener> workerDeathListeners = new CopyOnWriteArrayList<>();
 
     private volatile boolean running;
@@ -74,6 +77,7 @@ public class ManagerServer implements SmartLifecycle {
             JobRegistry jobRegistry,
             JobScheduler jobScheduler,
             JobTimeoutMonitor jobTimeoutMonitor,
+            EngineEventListener eventListener,
             List<WorkerDeathListener> workerDeathListeners) {
             
         if (port < 0 || port > 65535) {
@@ -90,6 +94,7 @@ public class ManagerServer implements SmartLifecycle {
         this.jobRegistry = jobRegistry;
         this.jobScheduler = jobScheduler;
         this.jobTimeoutMonitor = jobTimeoutMonitor;
+        this.eventListener = eventListener;
         
         if (workerDeathListeners != null) {
             this.workerDeathListeners.addAll(workerDeathListeners);
@@ -203,7 +208,9 @@ public class ManagerServer implements SmartLifecycle {
                 // If a newer thread re-registered with the same UUID, leave its entry alone.
                 boolean removed = registry.unregisterIfSame(workerId, localConnection);
                 if (removed) {
-                    LOG.info("Worker {} removed from registry", workerId);
+                    LOG.info("Worker {} removed from registry (TCP disconnect)", workerId);
+                    // Notify DB: TCP disconnect → worker is offline
+                    eventListener.onWorkerDied(workerId);
                     UUID finalId = workerId;
                     workerDeathListeners.forEach(l -> l.onWorkerDeath(finalId));
                 } else {
@@ -249,6 +256,11 @@ public class ManagerServer implements SmartLifecycle {
         out.write(ackBytes);
         out.flush();
 
+        // Persist worker registration — extract IP from socket
+        String ipAddress = (socket.getRemoteSocketAddress() instanceof InetSocketAddress addr)
+                ? addr.getHostString() : "unknown";
+        eventListener.onWorkerRegistered(workerId, hostname, ipAddress, connection.getConnectedAt());
+
         return connection;
     }
 
@@ -262,6 +274,7 @@ public class ManagerServer implements SmartLifecycle {
     private void handleHeartbeat(UUID workerId, WorkerConnection localConnection) {
         localConnection.updateHeartbeat();
         LOG.debug("Heartbeat received from Worker {}", workerId);
+        eventListener.onWorkerHeartbeat(workerId, localConnection.getLastHeartbeat());
     }
 
     /**
@@ -284,6 +297,7 @@ public class ManagerServer implements SmartLifecycle {
         try {
             job.transition(JobStatus.RUNNING);
             LOG.info("Worker {}: job {} transitioned ASSIGNED → RUNNING", workerId, job.getId());
+            eventListener.onJobRunning(job.getId(), job.getUpdatedAt());
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to RUNNING: {}", workerId, job.getId(), e.getMessage());
         }
@@ -321,12 +335,19 @@ public class ManagerServer implements SmartLifecycle {
             long durationMs = java.time.Duration.between(job.getCreatedAt(), job.getUpdatedAt()).toMillis();
             LOG.info("Job {} {} by Worker {} in {}ms", job.getId(), target, workerId, durationMs);
 
+            // Persist the final job state to DB
+            if (target == JobStatus.COMPLETED) {
+                eventListener.onJobCompleted(job.getId(), output, job.getUpdatedAt());
+            } else {
+                eventListener.onJobFailed(job.getId(), output, job.getUpdatedAt());
+            }
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to terminal state: {}", workerId, job.getId(), e.getMessage());
         } finally {
             // Always free the worker so it can accept the next assignment
             localConnection.setIdle();
             LOG.info("Worker {}: marked IDLE after job {}", workerId, job.getId());
+            eventListener.onWorkerIdle(workerId);
         }
     }
 
@@ -358,8 +379,9 @@ public class ManagerServer implements SmartLifecycle {
                         boolean removed = registry.unregisterIfSame(worker.getId(), worker);
 
                         if (removed) {
-                            // Notify listeners (e.g., CrashRecoveryHandler)
-                            LOG.info("Worker {} removed from registry", worker.getId());
+                            // Notify listeners (e.g., CrashRecoveryHandler) and persist to DB
+                            LOG.info("Worker {} removed from registry (heartbeat timeout)", worker.getId());
+                            eventListener.onWorkerDied(worker.getId());
                             workerDeathListeners.forEach(l -> l.onWorkerDeath(worker.getId()));
                         } else {
                             LOG.warn("Worker {} was already removed from registry", worker.getId());

@@ -1,5 +1,6 @@
 package com.doe.manager.scheduler;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.registry.JobRegistry;
@@ -16,6 +17,9 @@ import java.util.UUID;
 /**
  * Recovers jobs that were assigned to a worker that died or disconnected.
  * Implements {@link WorkerDeathListener} to receive callbacks from the {@link com.doe.manager.server.ManagerServer}.
+ * <p>
+ * Fires {@link EngineEventListener#onJobRequeued} and {@link EngineEventListener#onJobFailed}
+ * after each state transition so that the DB is kept in sync.
  */
 @Component
 public class CrashRecoveryHandler implements WorkerDeathListener {
@@ -23,10 +27,12 @@ public class CrashRecoveryHandler implements WorkerDeathListener {
     private static final Logger LOG = LoggerFactory.getLogger(CrashRecoveryHandler.class);
     private final JobRegistry jobRegistry;
     private final JobQueue jobQueue;
+    private final EngineEventListener eventListener;
 
-    public CrashRecoveryHandler(JobRegistry jobRegistry, JobQueue jobQueue) {
+    public CrashRecoveryHandler(JobRegistry jobRegistry, JobQueue jobQueue, EngineEventListener eventListener) {
         this.jobRegistry = jobRegistry;
         this.jobQueue = jobQueue;
+        this.eventListener = eventListener;
     }
 
     @Override
@@ -45,6 +51,7 @@ public class CrashRecoveryHandler implements WorkerDeathListener {
                         jobQueue.requeue(job); // Add to the front of the line
                         recovered++;
                         LOG.info("Job {} transitioned back to PENDING (retry {}/3)", job.getId(), job.getRetryCount());
+                        eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
                     } catch (IllegalStateException e) {
                         LOG.error("Failed to recover job {}", job.getId(), e);
                     }
@@ -52,6 +59,7 @@ public class CrashRecoveryHandler implements WorkerDeathListener {
                     job.transition(JobStatus.FAILED);
                     job.setResult("Failed after exceeding max retries (3) due to worker deaths.");
                     LOG.warn("Job {} FAILED after exceeding max retries.", job.getId());
+                    eventListener.onJobFailed(job.getId(), job.getResult(), job.getUpdatedAt());
                 }
             }
         }
@@ -74,6 +82,7 @@ public class CrashRecoveryHandler implements WorkerDeathListener {
                 jobQueue.requeue(job);
                 LOG.info("Job {} timed out on worker {} and transitioned back to PENDING (retry {}/3)", 
                          job.getId(), oldWorkerId, job.getRetryCount());
+                eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
             } catch (IllegalStateException e) {
                 LOG.error("Failed to recover timed-out job {}", job.getId(), e);
             }
@@ -82,6 +91,7 @@ public class CrashRecoveryHandler implements WorkerDeathListener {
                 job.transition(JobStatus.FAILED);
                 job.setResult("Failed after exceeding max retries (3) due to timeouts.");
                 LOG.warn("Job {} FAILED after exceeding max retries due to timeouts.", job.getId());
+                eventListener.onJobFailed(job.getId(), job.getResult(), job.getUpdatedAt());
             } catch (IllegalStateException e) {
                  LOG.error("Failed to fail timed-out job {}", job.getId(), e);
             }
