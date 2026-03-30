@@ -2,9 +2,16 @@
 
 ## Overview
 
-Build a modern, real-time web dashboard that visualizes the state of the entire cluster — workers, jobs, and system health — by consuming the Spring Boot REST API.
+Build a modern, real-time web dashboard for **Fern OS** that visualizes the state of the entire cluster — workers, jobs, and system health — by consuming the Spring Boot REST API.
 
 This is the user-facing layer. It transforms raw JSON data into an intuitive, live control panel that makes the distributed system **observable**.
+
+## UI/UX Design Language (Frieren-inspired)
+
+The design must embody the serene, gentle, and ethereal vibe of Frieren (from *Sousou no Frieren*), aligning with the **Fern OS** identity.
+- **Color Palette:** Soft, light, and gentle tones. Use Frieren's signature crisp whites, pale aquamarine/mint greens (fern), soft lavender or pale purple accents, with subtle warm golds for highlights or statuses.
+- **Aesthetic:** A "glassy, light, and gentle feeling." Utilize **Glassmorphism** (translucent frosted-glass panels with soft blurs and subtle white borders) floating over bright, airy, or subtle gradient backgrounds to create depth and elegance.
+- **Vibe:** Calm, magical, and clean. Despite being a system orchestration tool, the interface should feel tranquil, organized, and not overly aggressive or industrial—like a quiet, well-tended magical forest.
 
 ## Goals
 

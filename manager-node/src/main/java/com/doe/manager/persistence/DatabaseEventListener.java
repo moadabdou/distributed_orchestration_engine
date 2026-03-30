@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.Map;
@@ -47,6 +48,7 @@ public class DatabaseEventListener implements EngineEventListener {
 
     private final WorkerRepository workerRepository;
     private final JobRepository jobRepository;
+    private final TransactionTemplate transactionTemplate;
 
     /** Pending heartbeat timestamps keyed by workerId. Last write wins. */
     private final ConcurrentHashMap<UUID, Instant> pendingHeartbeats = new ConcurrentHashMap<>();
@@ -55,9 +57,11 @@ public class DatabaseEventListener implements EngineEventListener {
 
     public DatabaseEventListener(
             WorkerRepository workerRepository,
-            JobRepository jobRepository) {
+            JobRepository jobRepository,
+            TransactionTemplate transactionTemplate) {
         this.workerRepository = workerRepository;
         this.jobRepository = jobRepository;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @PostConstruct
@@ -70,7 +74,7 @@ public class DatabaseEventListener implements EngineEventListener {
         });
 
 
-        this.scheduleAtFixedRate(
+        this.heartbeatFlusher.scheduleAtFixedRate(
                 this::flushHeartbeats,
                 HEARTBEAT_FLUSH_INTERVAL_MS,
                 HEARTBEAT_FLUSH_INTERVAL_MS,
