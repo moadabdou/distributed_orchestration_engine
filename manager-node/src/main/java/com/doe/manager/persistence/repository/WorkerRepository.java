@@ -39,4 +39,18 @@ public interface WorkerRepository extends JpaRepository<WorkerEntity, UUID> {
     @Modifying
     @Query("UPDATE WorkerEntity w SET w.lastHeartbeat = :ts WHERE w.id = :id")
     int updateHeartbeat(@Param("id") UUID id, @Param("ts") Instant ts);
+
+    /**
+     * Sets the status of every worker row to the given value.
+     * <p>
+     * Called once on startup by {@link com.doe.manager.recovery.StartupRecoveryService}
+     * to mark all previously-connected workers as OFFLINE (they lost their connection
+     * when the Manager crashed/restarted).
+     *
+     * @param status the status to assign to all workers (typically {@code OFFLINE})
+     * @return number of rows updated
+     */
+    @Modifying
+    @Query("UPDATE WorkerEntity w SET w.status = :status")
+    int updateAllStatuses(@Param("status") WorkerStatus status);
 }

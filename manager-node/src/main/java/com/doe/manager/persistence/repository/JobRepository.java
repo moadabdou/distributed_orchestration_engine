@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,4 +37,14 @@ public interface JobRepository extends JpaRepository<JobEntity, UUID> {
      * @return a page of matching jobs
      */
     Page<JobEntity> findByStatus(JobStatus status, Pageable pageable);
+
+    /**
+     * Finds all jobs whose status is in the given collection.
+     * Used by {@link com.doe.manager.recovery.StartupRecoveryService} on startup
+     * to locate orphaned ASSIGNED/RUNNING jobs in a single query.
+     *
+     * @param statuses the set of statuses to match
+     * @return list of matching jobs
+     */
+    List<JobEntity> findByStatusIn(Collection<JobStatus> statuses);
 }
