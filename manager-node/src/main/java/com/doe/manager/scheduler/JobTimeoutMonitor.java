@@ -11,11 +11,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 /**
  * Periodically scans the {@link JobRegistry} for jobs that have been {@code ASSIGNED} or {@code RUNNING}
  * for longer than their configured {@code timeoutMs} (plus a short buffer). Timeouts trigger recovery 
  * via the {@link CrashRecoveryHandler}.
  */
+@Component
 public class JobTimeoutMonitor {
 
     private static final Logger LOG = LoggerFactory.getLogger(JobTimeoutMonitor.class);
@@ -31,6 +35,7 @@ public class JobTimeoutMonitor {
     /**
      * Creates a new timeout monitor checking every 10 seconds.
      */
+    @Autowired
     public JobTimeoutMonitor(JobRegistry jobRegistry, CrashRecoveryHandler recoveryHandler) {
         this(jobRegistry, recoveryHandler, 10_000);
     }

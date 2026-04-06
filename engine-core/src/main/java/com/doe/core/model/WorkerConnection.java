@@ -1,7 +1,5 @@
 package com.doe.core.model;
 
-import com.doe.core.model.WorkerStatus;
-
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.Instant;

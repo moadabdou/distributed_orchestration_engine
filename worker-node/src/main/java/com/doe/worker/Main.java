@@ -4,6 +4,11 @@ import com.doe.worker.client.WorkerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
 /**
  * Entry point for the Worker Node.
  * <p>
@@ -20,8 +25,33 @@ public class Main {
     public static void main(String[] args) {
         String host = parseArg(args, "--host", DEFAULT_HOST);
         int port = parsePort(args);
+        String authToken = parseArg(args, "--auth-token", System.getenv("WORKER_AUTH_TOKEN"));
 
-        WorkerClient client = new WorkerClient(host, port);
+        if (authToken == null || authToken.isBlank()) {
+            if (hasArg(args, "--dev")) {
+                String devValue = parseArg(args, "--dev", null);
+                UUID workerId;
+                
+                if (devValue != null && !devValue.startsWith("--")) {
+                    workerId = UUID.nameUUIDFromBytes(devValue.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    workerId = UUID.randomUUID();
+                }
+
+                String secret = "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z";
+                authToken = Jwts.builder()
+                        .subject(workerId.toString())
+                        .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)))
+                        .compact();
+                
+                LOG.info("DEV MODE ENABLED: Auto-generated JWT testing token for Worker ID: {}", workerId);
+            } else {
+                LOG.error("No auth token provided. Specify --auth-token, set WORKER_AUTH_TOKEN, or pass --dev [id] for testing.");
+                System.exit(1);
+            }
+        }
+
+        WorkerClient client = new WorkerClient(host, port, 5000, 10000, authToken);
 
         // Graceful shutdown on SIGINT / SIGTERM
         Runtime.getRuntime().addShutdownHook(Thread.ofVirtual()
@@ -48,6 +78,22 @@ public class Main {
             }
         }
         return defaultValue;
+    }
+
+    /**
+     * Checks if the argument array contains a specific flag.
+     *
+     * @param args the CLI argument array
+     * @param flag the flag name, e.g. {@code "--dev"}
+     * @return true if the flag is present
+     */
+    static boolean hasArg(String[] args, String flag) {
+        for (String arg : args) {
+            if (flag.equals(arg)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

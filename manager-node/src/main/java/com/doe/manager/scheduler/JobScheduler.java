@@ -1,5 +1,6 @@
 package com.doe.manager.scheduler;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.WorkerConnection;
@@ -15,25 +16,33 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.springframework.stereotype.Component;
+
 /**
- * Continuously polls the {@link JobQueue} and assigns pending jobs to idle workers.
+ * Continuously dequeues pending jobs and assigns them to idle workers.
  * <p>
- * Runs on a single Java-21 Virtual Thread. The loop is designed to be
- * responsive: it sleeps at most {@value #POLL_SLEEP_MS} ms when no work
- * or no workers are available.
+ * Runs on a single Java-21 Virtual Thread.
+ * {@link WorkerRegistry#findIdle()} <em>blocks</em> until a worker is available,
+ * so the loop only sleeps when the job queue is empty — no busy-waiting.
  *
  * <pre>
  * while (running) {
  *     job = queue.dequeue();
  *     if (job == null)  → sleep, continue
- *     worker = registry.findIdle();
- *     if (worker == null) → requeue(job), sleep, continue
+ *     worker = registry.findIdle();   // blocks until a worker is free
  *     job.transition(ASSIGNED)
- *     worker.trySetBusy()   ← already done inside findIdle()
  *     send ASSIGN_JOB over socket
  * }
  * </pre>
+ *
+ * <p>Fires the following {@link EngineEventListener} events:
+ * <ul>
+ *   <li>{@code onWorkerBusy} — after the job is successfully sent to the worker</li>
+ *   <li>{@code onJobAssigned} — after the job is successfully sent to the worker</li>
+ *   <li>{@code onWorkerIdle} / {@code onJobRequeued} — on socket-write failure (rollback)</li>
+ * </ul>
  */
+@Component
 public class JobScheduler {
 
     private static final Logger LOG = LoggerFactory.getLogger(JobScheduler.class);
@@ -42,12 +51,14 @@ public class JobScheduler {
 
     private final JobQueue queue;
     private final WorkerRegistry registry;
+    private final EngineEventListener eventListener;
     private volatile boolean running;
     private Thread schedulerThread;
 
-    public JobScheduler(JobQueue queue, WorkerRegistry registry) {
+    public JobScheduler(JobQueue queue, WorkerRegistry registry, EngineEventListener eventListener) {
         this.queue    = queue;
         this.registry = registry;
+        this.eventListener = eventListener;
     }
 
     /**
@@ -84,21 +95,13 @@ public class JobScheduler {
                 Job job = queue.dequeue();
 
                 if (job == null) {
-                    // Nothing to process — wait for new submissions
+                    // Nothing to process — block until a new job is submitted
                     Thread.sleep(POLL_SLEEP_MS);
                     continue;
                 }
 
+                // Blocks until an IDLE worker is available — no busy-waiting
                 WorkerConnection worker = registry.findIdle();
-
-                if (worker == null) {
-                    // No idle worker — put job back at the head of the queue
-                    queue.requeue(job);
-                    LOG.debug("No idle workers available. Job {} requeued. Queue size: {}",
-                            job.getId(), queue.size());
-                    Thread.sleep(POLL_SLEEP_MS);
-                    continue;
-                }
 
                 assignJob(job, worker);
 
@@ -116,6 +119,12 @@ public class JobScheduler {
      * On failure (socket error) the job is rolled back to {@link JobStatus#PENDING},
      * its {@code assignedWorkerId} is cleared, and the worker is freed (IDLE) so
      * both can be reused on the next scheduling cycle.
+     * <p>
+     * DB sync events fired here:
+     * <ul>
+     *   <li>Success → {@code onWorkerBusy}, {@code onJobAssigned}</li>
+     *   <li>Rollback → {@code onWorkerIdle}, {@code onJobRequeued}</li>
+     * </ul>
      */
     private void assignJob(Job job, WorkerConnection worker) {
         // Advance job state machine: PENDING → ASSIGNED
@@ -126,6 +135,15 @@ public class JobScheduler {
                 job.getId(), worker.getId(), queue.size());
 
         try {
+            // Record the reverse mapping: worker → job (for JOB_RESULT correlation)
+            // MUST happen before sending to avoid race conditions with fast workers
+            worker.setCurrentJob(job);
+
+            // Notify DB that the worker is now BUSY and the job has been ASSIGNED
+            // MUST happen before sending to avoid out-of-order COMPLETED → ASSIGNED transitions
+            eventListener.onWorkerBusy(worker.getId());
+            eventListener.onJobAssigned(job.getId(), worker.getId(), job.getUpdatedAt());
+
             // Build the ASSIGN_JOB envelope: { "jobId": "...", "payload": <original payload> }
             // so the worker can echo jobId back in JOB_RUNNING and JOB_RESULT.
             JsonObject envelope = new JsonObject();
@@ -140,18 +158,21 @@ public class JobScheduler {
                 out.write(wire);
                 out.flush();
             }
-            // Record the reverse mapping: worker → job (for JOB_RESULT correlation)
-            worker.setCurrentJob(job);
+
         } catch (IOException e) {
             LOG.error("Failed to send ASSIGN_JOB to worker {}. Rolling back job {} to PENDING.",
                     worker.getId(), job.getId(), e);
             // Roll back job state: ASSIGNED → PENDING (valid transition)
             job.transition(JobStatus.PENDING);
             job.setAssignedWorkerId(null);
-            // setIdle() also clears currentJob atomically
-            worker.setIdle();
+            // markIdle() clears currentJob and re-offers the worker to the idle queue
+            registry.markIdle(worker.getId());
             // Re-insert at the head of the queue so it is retried promptly
             queue.requeue(job);
+
+            // Notify DB about the rollback
+            eventListener.onWorkerIdle(worker.getId());
+            eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
         }
     }
 

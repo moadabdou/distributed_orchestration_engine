@@ -28,7 +28,7 @@ Build the "Jobs" page that displays all jobs with filtering, sorting, and real-t
 
 ## Acceptance Criteria
 
-- [ ] `/jobs` route renders a paginated job list
+- [ ] `/jobs` route renders a paginated job list styled with the soft, ethereal Fern OS theme
 - [ ] Live polling every 2 seconds via `useQuery` + `refetchInterval`
 - [ ] Status filter: clicking a status filters the list (client-side or query param to API)
 - [ ] Pagination controls: Previous / Next / page indicator

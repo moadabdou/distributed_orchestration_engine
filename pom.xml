@@ -32,6 +32,7 @@
         <slf4j.version>2.0.13</slf4j.version>
         <logback.version>1.5.6</logback.version>
         <junit.version>5.10.3</junit.version>
+        <spring-boot.version>3.3.4</spring-boot.version>
     </properties>
 
     <!-- ─── Dependency Management (BOM) ─────────────────────────── -->
@@ -62,6 +63,25 @@
                 <artifactId>junit-jupiter</artifactId>
                 <version>${junit.version}</version>
                 <scope>test</scope>
+            </dependency>
+            
+            <!-- Testcontainers BOM — override Spring Boot 3.3.4's bundled 1.19.8
+                 because API 1.32 is rejected by Docker Engine 29.x (min=1.40).  -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.20.6</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Boot BOM -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

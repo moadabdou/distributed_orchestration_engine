@@ -9,5 +9,7 @@ public enum WorkerStatus {
     /** Worker is connected and available to accept new jobs. */
     IDLE,
     /** Worker is currently executing a job. */
-    BUSY
+    BUSY,
+    /** Worker has disconnected or been declared dead. Persisted in DB only. */
+    OFFLINE
 }

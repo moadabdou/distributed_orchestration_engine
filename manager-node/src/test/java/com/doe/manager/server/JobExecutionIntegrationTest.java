@@ -3,13 +3,16 @@ package com.doe.manager.server;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.worker.client.WorkerClient;
-import com.doe.manager.scheduler.JobQueue;
 import org.junit.jupiter.api.*;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -33,21 +36,21 @@ class JobExecutionIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         // Use short heartbeat to avoid false positives during execution
-        server = new ManagerServer(0, 2000, 10_000);
+        server = TestManagerServerBuilder.build(0, 2000, 10_000);
         CountDownLatch serverReady = new CountDownLatch(1);
         serverThread = Thread.ofVirtual().start(() -> {
-            try {
-                serverReady.countDown();
-                server.start();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            serverReady.countDown();
+            server.start();
         });
         assertTrue(serverReady.await(5, TimeUnit.SECONDS), "Server failed to start");
         Thread.sleep(100); // let accept loop open
 
-        worker = new WorkerClient("localhost", server.getLocalPort(), 3000);
-        CountDownLatch workerRegistered = new CountDownLatch(1);
+        String secret = "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z";
+        String token = Jwts.builder()
+                .subject(UUID.randomUUID().toString())
+                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+        worker = new WorkerClient("localhost", server.getLocalPort(), 3000, 10000, token);
         workerThread = Thread.ofVirtual().start(worker::start);
 
         // Wait until the worker registers (registry has 1 entry)

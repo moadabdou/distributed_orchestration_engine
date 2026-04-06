@@ -1,5 +1,6 @@
 package com.doe.manager.server;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.WorkerConnection;
@@ -10,8 +11,6 @@ import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.registry.WorkerRegistry;
 import com.doe.core.registry.JobRegistry;
 import com.doe.core.registry.WorkerDeathListener;
-import com.doe.manager.scheduler.CrashRecoveryHandler;
-import com.doe.manager.scheduler.JobQueue;
 import com.doe.manager.scheduler.JobScheduler;
 import com.doe.manager.scheduler.JobTimeoutMonitor;
 import com.google.gson.Gson;
@@ -20,19 +19,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.security.Keys;
+
+import javax.crypto.SecretKey;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.SmartLifecycle;
+import org.springframework.stereotype.Service;
 
 /**
  * Central manager server that accepts worker TCP connections using Java 21 Virtual Threads.
@@ -42,7 +53,8 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Wire protocol: {@code [1B Type][4B Length][NB Payload]}
  */
-public class ManagerServer {
+@Service
+public class ManagerServer implements SmartLifecycle {
 
     private static final Logger LOG = LoggerFactory.getLogger(ManagerServer.class);
     private static final Gson GSON = new Gson();
@@ -54,65 +66,76 @@ public class ManagerServer {
     private final long heartbeatTimeoutMs;
     private final JobScheduler jobScheduler;
     private final JobTimeoutMonitor jobTimeoutMonitor;
+    private final EngineEventListener eventListener;
     private final List<WorkerDeathListener> workerDeathListeners = new CopyOnWriteArrayList<>();
 
     private volatile boolean running;
     private ServerSocket serverSocket;
     private ScheduledExecutorService monitorExecutor;
+    private final SecretKey jwtSecretKey;
 
     /**
-     * Creates a new ManagerServer with default heartbeat configuration.
-     *
-     * @param port the TCP port to bind to
+     * Creates a new ManagerServer using Spring constructor injection.
      */
-    public ManagerServer(int port) {
-        this(port, 5000, 15000);
-    }
-
-    /**
-     * Creates a new ManagerServer.
-     *
-     * @param port                     the TCP port to bind to
-     * @param heartbeatCheckIntervalMs how frequently to check for dead workers (in ms)
-     * @param heartbeatTimeoutMs       how long without a heartbeat before a worker is marked DEAD (in ms)
-     */
-    public ManagerServer(int port, long heartbeatCheckIntervalMs, long heartbeatTimeoutMs) {
+    public ManagerServer(
+            @Value("${server.tcp.port:9090}") int port,
+            @Value("${fernos.heartbeat.check.interval:5000}") long heartbeatCheckIntervalMs,
+            @Value("${fernos.heartbeat.timeout:15000}") long heartbeatTimeoutMs,
+            @Value("${manager.security.jwt.secret:default-secret}") String jwtSecret,
+            WorkerRegistry registry,
+            JobRegistry jobRegistry,
+            JobScheduler jobScheduler,
+            JobTimeoutMonitor jobTimeoutMonitor,
+            EngineEventListener eventListener,
+            List<WorkerDeathListener> workerDeathListeners) {
+            
         if (port < 0 || port > 65535) {
             throw new IllegalArgumentException("Port must be between 0 and 65535, got: " + port);
         }
         if (heartbeatCheckIntervalMs <= 0 || heartbeatTimeoutMs <= 0) {
             throw new IllegalArgumentException("Heartbeat intervals must be positive");
         }
+        
         this.port = port;
         this.heartbeatCheckIntervalMs = heartbeatCheckIntervalMs;
         this.heartbeatTimeoutMs = heartbeatTimeoutMs;
-        this.registry = new WorkerRegistry();
-        this.jobRegistry = new JobRegistry();
-        this.jobScheduler = new JobScheduler(new JobQueue(jobRegistry), this.registry);
+        this.registry = registry;
+        this.jobRegistry = jobRegistry;
+        this.jobScheduler = jobScheduler;
+        this.jobTimeoutMonitor = jobTimeoutMonitor;
+        this.eventListener = eventListener;
+        this.jwtSecretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
         
-        CrashRecoveryHandler recoveryHandler = new CrashRecoveryHandler(jobRegistry, this.jobScheduler.getQueue());
-        addWorkerDeathListener(recoveryHandler);
-        this.jobTimeoutMonitor = new JobTimeoutMonitor(jobRegistry, recoveryHandler);
+        if (workerDeathListeners != null) {
+            this.workerDeathListeners.addAll(workerDeathListeners);
+        }
     }
 
     /**
-     * Starts the server, binding to the configured port and entering the accept loop.
-     * <p>
-     * This method blocks until {@link #shutdown()} is called or an error occurs.
-     *
-     * @throws IOException if the server socket cannot be bound
+     * Starts the server, binding to the configured port and starting the accept loop
+     * in a separate virtual thread. Implements SmartLifecycle.
      */
-    public void start() throws IOException {
-        serverSocket = new ServerSocket(port);
-        serverSocket.setReuseAddress(true);
-        running = true;
+    @Override
+    public void start() {
+        try {
+            serverSocket = new ServerSocket(port);
+            serverSocket.setReuseAddress(true);
+            running = true;
 
-        LOG.info("ManagerServer started on port {}", serverSocket.getLocalPort());
+            LOG.info("ManagerServer started on TCP port {}", serverSocket.getLocalPort());
 
-        startHeartbeatMonitor();
-        jobTimeoutMonitor.start();
-        jobScheduler.start();
-
+            startHeartbeatMonitor();
+            jobTimeoutMonitor.start();
+            jobScheduler.start();
+            
+            Thread.ofVirtual().name("manager-acceptor").start(this::acceptLoop);
+        } catch (IOException e) {
+            LOG.error("Failed to start ManagerServer", e);
+            throw new RuntimeException("Failed to start ManagerServer", e);
+        }
+    }
+    
+    private void acceptLoop() {
         while (running) {
             try {
                 Socket clientSocket = serverSocket.accept();
@@ -124,6 +147,10 @@ public class ManagerServer {
                     LOG.error("Error accepting connection", e);
                 }
                 // If !running, this is expected from shutdown() closing the ServerSocket
+            } catch (IOException e) {
+                if (running) {
+                    LOG.error("I/O error accepting connection", e);
+                }
             }
         }
     }
@@ -191,7 +218,9 @@ public class ManagerServer {
                 // If a newer thread re-registered with the same UUID, leave its entry alone.
                 boolean removed = registry.unregisterIfSame(workerId, localConnection);
                 if (removed) {
-                    LOG.info("Worker {} removed from registry", workerId);
+                    LOG.info("Worker {} removed from registry (TCP disconnect)", workerId);
+                    // Notify DB: TCP disconnect → worker is offline
+                    eventListener.onWorkerDied(workerId);
                     UUID finalId = workerId;
                     workerDeathListeners.forEach(l -> l.onWorkerDeath(finalId));
                 } else {
@@ -215,17 +244,54 @@ public class ManagerServer {
      * @return the newly created {@link WorkerConnection}
      */
     private WorkerConnection handleRegistration(Message message, Socket socket) throws IOException {
-        // Parse payload for metadata only (hostname, etc.) — workerId is ignored
+        // Parse payload for metadata and auth_token
         JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
         String hostname = json.has("hostname") ? json.get("hostname").getAsString() : "unknown";
+        String authToken = json.has("auth_token") ? json.get("auth_token").getAsString() : null;
 
-        // Manager always assigns the UUID — never trust the client
-        UUID workerId = UUID.randomUUID();
+        if (authToken == null || authToken.isBlank()) {
+            LOG.warn("Registration rejected from {}: missing auth_token", socket.getRemoteSocketAddress());
+            throw new IOException("Missing auth_token");
+        }
+
+        UUID workerId;
+        try {
+            String subject = Jwts.parser()
+                    .verifyWith(jwtSecretKey)
+                    .build()
+                    .parseSignedClaims(authToken)
+                    .getPayload()
+                    .getSubject();
+            
+            workerId = UUID.fromString(subject);
+        } catch (JwtException | IllegalArgumentException e) {
+            LOG.warn("Registration rejected from {}: invalid auth_token - {}", socket.getRemoteSocketAddress(), e.getMessage());
+            throw new IOException("Invalid auth_token", e);
+        }
 
         WorkerConnection connection = new WorkerConnection(workerId, socket);
-        registry.register(connection);
 
         LOG.info("Worker {} connected from {} (hostname: {})", workerId, connection.getRemoteAddress(), hostname);
+
+        Optional<WorkerConnection> prevOpt = registry.get(workerId);
+        if (prevOpt.isPresent()) {
+            WorkerConnection prev = prevOpt.get();
+            LOG.warn("Worker {} reconnected. Evicting previous stale connection.", workerId);
+            try { prev.getSocket().close(); } catch (Exception ignored) {}
+            if (registry.unregisterIfSame(workerId, prev)) {
+                eventListener.onWorkerDied(workerId);
+                UUID finalId = workerId;
+                workerDeathListeners.forEach(l -> l.onWorkerDeath(finalId));
+            }
+        }
+
+        // Persist worker registration — extract IP from socket
+        String ipAddress = (socket.getRemoteSocketAddress() instanceof InetSocketAddress addr)
+                ? addr.getHostString() : "unknown";
+        eventListener.onWorkerRegistered(workerId, hostname, ipAddress, connection.getConnectedAt());
+
+        // Make worker available to scheduler only after successful DB persistence
+        registry.register(connection);
 
         // Send REGISTER_ACK with the manager-assigned UUID
         JsonObject ackPayload = new JsonObject();
@@ -250,6 +316,7 @@ public class ManagerServer {
     private void handleHeartbeat(UUID workerId, WorkerConnection localConnection) {
         localConnection.updateHeartbeat();
         LOG.debug("Heartbeat received from Worker {}", workerId);
+        eventListener.onWorkerHeartbeat(workerId, localConnection.getLastHeartbeat());
     }
 
     /**
@@ -272,6 +339,7 @@ public class ManagerServer {
         try {
             job.transition(JobStatus.RUNNING);
             LOG.info("Worker {}: job {} transitioned ASSIGNED → RUNNING", workerId, job.getId());
+            eventListener.onJobRunning(job.getId(), job.getUpdatedAt());
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to RUNNING: {}", workerId, job.getId(), e.getMessage());
         }
@@ -294,7 +362,7 @@ public class ManagerServer {
 
         if (!workerId.equals(job.getAssignedWorkerId())) {
             LOG.warn("Worker {}: ignored JOB_RESULT for job {} (no longer assigned to this worker)", workerId, job.getId());
-            localConnection.setIdle();
+            registry.markIdle(workerId);
             return;
         }
 
@@ -309,12 +377,19 @@ public class ManagerServer {
             long durationMs = java.time.Duration.between(job.getCreatedAt(), job.getUpdatedAt()).toMillis();
             LOG.info("Job {} {} by Worker {} in {}ms", job.getId(), target, workerId, durationMs);
 
+            // Persist the final job state to DB
+            if (target == JobStatus.COMPLETED) {
+                eventListener.onJobCompleted(job.getId(), output, job.getUpdatedAt());
+            } else {
+                eventListener.onJobFailed(job.getId(), output, job.getUpdatedAt());
+            }
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to terminal state: {}", workerId, job.getId(), e.getMessage());
         } finally {
-            // Always free the worker so it can accept the next assignment
-            localConnection.setIdle();
+            // markIdle() clears currentJob and re-offers the worker to the idle queue
+            registry.markIdle(workerId);
             LOG.info("Worker {}: marked IDLE after job {}", workerId, job.getId());
+            eventListener.onWorkerIdle(workerId);
         }
     }
 
@@ -343,10 +418,16 @@ public class ManagerServer {
                             LOG.warn("Error closing dead worker {} socket", worker.getId(), e);
                         }
                         // Remove from registry immediately to prevent relying on the handler thread's finally block
-                        registry.unregisterIfSame(worker.getId(), worker);
-                        
-                        // Notify listeners (e.g., CrashRecoveryHandler)
-                        workerDeathListeners.forEach(l -> l.onWorkerDeath(worker.getId()));
+                        boolean removed = registry.unregisterIfSame(worker.getId(), worker);
+
+                        if (removed) {
+                            // Notify listeners (e.g., CrashRecoveryHandler) and persist to DB
+                            LOG.info("Worker {} removed from registry (heartbeat timeout)", worker.getId());
+                            eventListener.onWorkerDied(worker.getId());
+                            workerDeathListeners.forEach(l -> l.onWorkerDeath(worker.getId()));
+                        } else {
+                            LOG.warn("Worker {} was already removed from registry", worker.getId());
+                        }
                     }
                 });
             } catch (Exception e) {
@@ -356,6 +437,11 @@ public class ManagerServer {
         
         LOG.info("HeartbeatMonitor started (interval: {} ms, timeout: {} ms)", 
                 heartbeatCheckIntervalMs, heartbeatTimeoutMs);
+    }
+
+    @Override
+    public void stop() {
+        shutdown();
     }
 
     /**

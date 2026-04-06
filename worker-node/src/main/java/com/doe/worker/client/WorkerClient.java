@@ -1,12 +1,16 @@
 package com.doe.worker.client;
 
-import com.doe.core.executor.DummyTaskExecutor;
-import com.doe.core.executor.TaskExecutor;
 import com.doe.core.protocol.Message;
 import com.doe.core.protocol.MessageType;
 import com.doe.core.protocol.ProtocolDecoder;
 import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.util.RetryPolicy;
+import com.doe.worker.executor.EchoPlugin;
+import com.doe.worker.executor.FibonacciPlugin;
+import com.doe.worker.executor.ShellScriptPlugin;
+import com.doe.worker.executor.SleepPlugin;
+import com.doe.worker.executor.TaskPluginRegistry;
+import com.doe.worker.executor.UnknownTaskTypeException;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.slf4j.Logger;
@@ -20,6 +24,7 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -46,15 +51,26 @@ public class WorkerClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(WorkerClient.class);
     private static final Gson GSON = new Gson();
-    private static final TaskExecutor EXECUTOR = new DummyTaskExecutor();
 
     /** Backoff: 1 s → 2 s → 4 s … capped at 30 s, unlimited attempts. */
     private static final RetryPolicy RETRY_POLICY =
             new RetryPolicy(1_000, 30_000, Integer.MAX_VALUE);
 
+    /** Builds the default registry used when no custom registry is supplied. */
+    private static TaskPluginRegistry defaultRegistry() {
+        return new TaskPluginRegistry()
+                .register("echo",      new EchoPlugin())
+                .register("sleep",     new SleepPlugin())
+                .register("fibonacci", new FibonacciPlugin())
+                .register("bash",      new ShellScriptPlugin());
+    }
+
     private final String host;
     private final int port;
     private final long heartbeatIntervalMs;
+    private final int readTimeoutMs;
+    private final String authToken;
+    private final TaskPluginRegistry registry;
 
     private volatile boolean running = true;
     private volatile Socket socket;
@@ -66,7 +82,7 @@ public class WorkerClient {
      * @param port the manager TCP port
      */
     public WorkerClient(String host, int port) {
-        this(host, port, 5000);
+        this(host, port, 5000, 10000, null, defaultRegistry());
     }
 
     /**
@@ -77,6 +93,28 @@ public class WorkerClient {
      * @param heartbeatIntervalMs heartbeat interval in milliseconds
      */
     public WorkerClient(String host, int port, long heartbeatIntervalMs) {
+        this(host, port, heartbeatIntervalMs, 10000, null, defaultRegistry());
+    }
+
+    /**
+     * Creates a new WorkerClient.
+     *
+     * @param host                the manager hostname or IP address
+     * @param port                the manager TCP port
+     * @param heartbeatIntervalMs heartbeat interval in milliseconds
+     * @param readTimeoutMs       socket read timeout in milliseconds
+     * @param authToken           the JWT authentication token
+     */
+    public WorkerClient(String host, int port, long heartbeatIntervalMs, int readTimeoutMs, String authToken) {
+        this(host, port, heartbeatIntervalMs, readTimeoutMs, authToken, defaultRegistry());
+    }
+
+    /**
+     * Full constructor — accepts an externally-built {@link TaskPluginRegistry}.
+     * Useful in tests to inject a controlled set of plugins.
+     */
+    public WorkerClient(String host, int port, long heartbeatIntervalMs, int readTimeoutMs,
+                        String authToken, TaskPluginRegistry registry) {
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException("host must not be blank");
         }
@@ -86,9 +124,18 @@ public class WorkerClient {
         if (heartbeatIntervalMs <= 0) {
             throw new IllegalArgumentException("heartbeatIntervalMs must be positive, got: " + heartbeatIntervalMs);
         }
+        if (readTimeoutMs <= 0) {
+            throw new IllegalArgumentException("readTimeoutMs must be positive, got: " + readTimeoutMs);
+        }
+        if (registry == null) {
+            throw new IllegalArgumentException("registry must not be null");
+        }
         this.host = host;
         this.port = port;
         this.heartbeatIntervalMs = heartbeatIntervalMs;
+        this.readTimeoutMs = readTimeoutMs;
+        this.authToken = authToken;
+        this.registry = registry;
     }
 
     /**
@@ -131,6 +178,7 @@ public class WorkerClient {
         RETRY_POLICY.execute(() -> {
             LOG.info("Connecting to manager at {}:{}...", host, port);
             socket = new Socket(host, port);
+            socket.setSoTimeout(readTimeoutMs);
             LOG.info("Connected to manager at {}", socket.getRemoteSocketAddress());
         });
 
@@ -146,6 +194,9 @@ public class WorkerClient {
             String hostname = resolveHostname();
             JsonObject regPayload = new JsonObject();
             regPayload.addProperty("hostname", hostname);
+            if (authToken != null && !authToken.isBlank()) {
+                regPayload.addProperty("auth_token", authToken);
+            }
 
             byte[] regBytes = ProtocolEncoder.encode(
                     MessageType.REGISTER_WORKER, GSON.toJson(regPayload));
@@ -192,10 +243,24 @@ public class WorkerClient {
     private void runMainLoop(InputStream in, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) throws IOException {
         LOG.info("Worker {} entering main loop, waiting for commands...", workerId);
 
+        int consecutiveTimeouts = 0;
+        final int MAX_TIMEOUTS = 3;
+
         while (running) {
             Message message;
             try {
                 message = ProtocolDecoder.decode(in);
+                consecutiveTimeouts = 0; // reset on successful read
+            } catch (SocketTimeoutException e) {
+                if (!running) break;
+                consecutiveTimeouts++;
+                LOG.debug("Worker {}: read timeout {}/{}", workerId, consecutiveTimeouts, MAX_TIMEOUTS);
+
+                if (consecutiveTimeouts >= MAX_TIMEOUTS) {
+                    LOG.warn("Worker {}: disconnecting aggressively after {} consecutive read timeouts.", workerId, MAX_TIMEOUTS);
+                    break;
+                }
+                continue;
             } catch (EOFException e) {
                 LOG.info("Worker {}: manager closed the connection (stream ended).", workerId);
                 return;
@@ -246,14 +311,17 @@ public class WorkerClient {
             return;
         }
 
-        // ── 2. Execute the task with a 60-second timeout ─────────────────────
+        // ── 2. Execute the task (hard wall: outer orTimeout; soft wall: plugin-level timeoutMs) ──
         String status;
         String output;
         try {
             String result = CompletableFuture
                     .supplyAsync(() -> {
                         try {
-                            return EXECUTOR.execute(payloadJson);
+                            return registry.execute(payloadJson);
+                        } catch (UnknownTaskTypeException ex) {
+                            // Surface as a clean FAILED result rather than an unexpected error
+                            throw new CompletionException(ex);
                         } catch (Exception ex) {
                             throw new CompletionException(ex);
                         }
@@ -267,7 +335,11 @@ public class WorkerClient {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             status = "FAILED";
             output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-            LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
+            if (cause instanceof UnknownTaskTypeException) {
+                LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobId, cause.getMessage());
+            } else {
+                LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
+            }
         }
 
         // ── 3. Send JOB_RESULT back to manager ───────────────────────────────

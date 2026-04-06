@@ -16,7 +16,7 @@ class JobQueueTest {
 
     @BeforeEach
     void setUp() {
-        queue = new JobQueue(null);
+        queue = new JobQueue(null, 2);
     }
 
     private Job makeJob(String payload) {
@@ -40,6 +40,22 @@ class JobQueueTest {
     @DisplayName("dequeue on empty queue returns null")
     void dequeue_empty_returnsNull() {
         assertNull(queue.dequeue());
+    }
+
+    @Test
+    @DisplayName("enqueue throws JobQueueFullException when capacity is exceeded")
+    void enqueue_capacityExceeded_throws() {
+        queue.enqueue(makeJob("1"));
+        queue.enqueue(makeJob("2"));
+        assertThrows(JobQueueFullException.class, () -> queue.enqueue(makeJob("3")));
+    }
+
+    @Test
+    @DisplayName("requeue throws JobQueueFullException when capacity is exceeded")
+    void requeue_capacityExceeded_throws() {
+        queue.enqueue(makeJob("1"));
+        queue.enqueue(makeJob("2"));
+        assertThrows(JobQueueFullException.class, () -> queue.requeue(makeJob("3")));
     }
 
     @Test

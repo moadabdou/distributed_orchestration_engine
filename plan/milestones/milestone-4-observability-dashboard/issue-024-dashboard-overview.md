@@ -25,7 +25,7 @@ Build the main dashboard landing page with summary metrics and the application s
 
 ```
 ┌──────────────────────────────────────────┐
-│  🔧 Orchestration Engine                 │
+│  🌱 Fern OS                              │
 ├──────────┬───────────────────────────────┤
 │          │                               │
 │ Dashboard│   [Summary Cards]             │
@@ -43,5 +43,5 @@ Build the main dashboard landing page with summary metrics and the application s
 - [ ] Recent activity feed: last 10 job status changes (derived from jobs sorted by `updatedAt`)
 - [ ] Active route highlighted in sidebar
 - [ ] Dark/light theme toggle (persisted in `localStorage`)
-- [ ] Professional branding: app title, subtle logo placeholder
+- [ ] Professional branding: Fern OS title, Frieren-inspired glassy aesthetic
 - [ ] Responsive: sidebar collapses to hamburger on mobile

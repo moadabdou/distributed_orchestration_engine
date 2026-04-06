@@ -14,10 +14,10 @@ Initialize a new React + TypeScript SPA using Vite in a `dashboard/` directory a
 - [ ] Project created via `npm create vite@latest dashboard -- --template react-ts`
 - [ ] Directory structure: `dashboard/src/`, `dashboard/public/`, `dashboard/tsconfig.json`
 - [ ] TypeScript strict mode enabled (`"strict": true` in `tsconfig.json`)
-- [ ] Install core dependencies: `axios` (or fetch wrapper), `react-router-dom`, `@tanstack/react-query`
+- [ ] Install core dependencies: `axios` (or fetch wrapper), `react-router-dom`, `@tanstack/react-query`, and styling libraries (e.g. `tailwindcss` for glassmorphism)
 - [ ] ESLint + Prettier configured with TypeScript rules
 - [ ] `npm run dev` serves the app on `http://localhost:5173` with HMR
-- [ ] Placeholder `App.tsx` renders "Orchestration Dashboard" heading
+- [ ] Placeholder `App.tsx` renders "Fern OS Dashboard" heading
 - [ ] Proxy config: Vite dev server proxies `/api` → `http://localhost:8080` (Spring Boot)
 
 ## Technical Notes

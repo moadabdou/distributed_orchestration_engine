@@ -5,14 +5,17 @@ import com.doe.core.model.JobStatus;
 import com.doe.worker.client.WorkerClient;
 import com.doe.manager.scheduler.JobQueue;
 import org.junit.jupiter.api.*;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 
 /**
  * End-to-end Chaos integration test for Issue #010 — Worker Crash Recovery.
@@ -31,23 +34,24 @@ class CrashRecoveryIntegrationTest {
     void setUp() throws Exception {
         // Fast heartbeat checks and monitor intervals to speed up tests, 
         // using port 0 for OS-assigned port.
-        server = new ManagerServer(0, 1000, 3000);
+        server = TestManagerServerBuilder.build(0, 1000, 3000);
         
         CountDownLatch serverReady = new CountDownLatch(1);
         serverThread = Thread.ofVirtual().start(() -> {
-            try {
-                serverReady.countDown();
-                server.start();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            serverReady.countDown();
+            server.start();
         });
         assertTrue(serverReady.await(5, TimeUnit.SECONDS), "Server failed to start");
         Thread.sleep(100); // let accept loop open
 
         // Start 3 workers
+        String secret = "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z";
         for (int i = 0; i < 3; i++) {
-            WorkerClient worker = new WorkerClient("localhost", server.getLocalPort(), 1000);
+            String token = Jwts.builder()
+                    .subject(UUID.randomUUID().toString())
+                    .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)))
+                    .compact();
+            WorkerClient worker = new WorkerClient("localhost", server.getLocalPort(), 1000, 10000, token);
             workers.add(worker);
             Thread workerThread = Thread.ofVirtual().start(worker::start);
             workerThreads.add(workerThread);

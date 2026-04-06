@@ -41,16 +41,12 @@ class JobSchedulerIntegrationTest {
 
     @BeforeEach
     void startServer() throws Exception {
-        server = new ManagerServer(0);
+        server = com.doe.manager.server.TestManagerServerBuilder.build(0);
 
         CountDownLatch ready = new CountDownLatch(1);
         serverThread = Thread.ofVirtual().start(() -> {
-            try {
-                ready.countDown();
-                server.start();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            ready.countDown();
+            server.start();
         });
 
         assertTrue(ready.await(5, TimeUnit.SECONDS), "Server failed to start");
@@ -66,7 +62,13 @@ class JobSchedulerIntegrationTest {
     // ──── Helpers ────────────────────────────────────────────────────────────
 
     private UUID registerWorker(Socket socket) throws IOException {
-        String json = "{\"hostname\":\"test-worker\"}";
+        String secret = "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z";
+        String token = io.jsonwebtoken.Jwts.builder()
+                .subject(UUID.randomUUID().toString())
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .compact();
+
+        String json = "{\"hostname\":\"test-worker\", \"auth_token\":\"" + token + "\"}";
         OutputStream out = socket.getOutputStream();
         out.write(ProtocolEncoder.encode(MessageType.REGISTER_WORKER, json.getBytes(StandardCharsets.UTF_8)));
         out.flush();
@@ -120,8 +122,8 @@ class JobSchedulerIntegrationTest {
                             if (msg.type() == MessageType.ASSIGN_JOB) {
                                 assignmentsReceived.incrementAndGet();
                                 allAssigned.countDown();
-                                // Simulate job completion: release the worker
-                                server.getRegistry().get(wid).ifPresent(w -> w.setIdle());
+                                // Simulate job completion: release the worker back to the idle queue
+                                server.getRegistry().markIdle(wid);
                             }
                         }
                     } catch (IOException ignored) {
@@ -165,7 +167,7 @@ class JobSchedulerIntegrationTest {
             Thread.ofVirtual().start(() -> {
                 try {
                     Thread.sleep(300);
-                    server.getRegistry().get(workerId).ifPresent(w -> w.setIdle());
+                    server.getRegistry().markIdle(workerId);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }

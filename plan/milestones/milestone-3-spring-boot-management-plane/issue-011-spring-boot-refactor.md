@@ -3,7 +3,7 @@
 **Milestone:** 3 — Spring Boot Management Plane  
 **Labels:** `manager-node`, `spring-boot`, `refactor`, `priority:high`  
 **Assignee:** —  
-**Estimate:** 1 day  
+**Estimate:** 2 day  
 **Depends on:** #003  
 
 ## Description

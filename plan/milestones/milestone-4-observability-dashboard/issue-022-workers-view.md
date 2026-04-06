@@ -22,9 +22,9 @@ Build the "Workers" page that displays all connected worker nodes in a responsiv
 
 ## Acceptance Criteria
 
-- [ ] `/workers` route renders a table/grid of all workers
+- [ ] `/workers` route renders a table/grid of all workers using the glassy, Frieren-inspired aesthetic
 - [ ] Uses `@tanstack/react-query` `useQuery` with `refetchInterval: 2000` for live polling
-- [ ] Status badges: green (IDLE), amber (BUSY), red (OFFLINE) with smooth transitions
+- [ ] Status badges: soft mint green (IDLE), subtle gold/amber (BUSY), soft red (OFFLINE) with smooth, gentle transitions
 - [ ] Empty state: "No workers connected" message when list is empty
 - [ ] Loading skeleton shown during initial data fetch
 - [ ] Last heartbeat displayed as relative time (e.g., "5s ago"), updated client-side every second
