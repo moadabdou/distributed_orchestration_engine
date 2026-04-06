@@ -165,14 +165,15 @@ public class JobScheduler {
             // Roll back job state: ASSIGNED → PENDING (valid transition)
             job.transition(JobStatus.PENDING);
             job.setAssignedWorkerId(null);
+            
+            // Notify DB about the rollback
+            eventListener.onWorkerIdle(worker.getId());
+            eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
+            
             // markIdle() clears currentJob and re-offers the worker to the idle queue
             registry.markIdle(worker.getId());
             // Re-insert at the head of the queue so it is retried promptly
             queue.requeue(job);
-
-            // Notify DB about the rollback
-            eventListener.onWorkerIdle(worker.getId());
-            eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
         }
     }
 
