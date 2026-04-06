@@ -20,6 +20,7 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -55,6 +56,7 @@ public class WorkerClient {
     private final String host;
     private final int port;
     private final long heartbeatIntervalMs;
+    private final int readTimeoutMs;
 
     private volatile boolean running = true;
     private volatile Socket socket;
@@ -66,7 +68,7 @@ public class WorkerClient {
      * @param port the manager TCP port
      */
     public WorkerClient(String host, int port) {
-        this(host, port, 5000);
+        this(host, port, 5000, 10000);
     }
 
     /**
@@ -77,6 +79,18 @@ public class WorkerClient {
      * @param heartbeatIntervalMs heartbeat interval in milliseconds
      */
     public WorkerClient(String host, int port, long heartbeatIntervalMs) {
+        this(host, port, heartbeatIntervalMs, 10000);
+    }
+
+    /**
+     * Creates a new WorkerClient.
+     *
+     * @param host                the manager hostname or IP address
+     * @param port                the manager TCP port
+     * @param heartbeatIntervalMs heartbeat interval in milliseconds
+     * @param readTimeoutMs       socket read timeout in milliseconds
+     */
+    public WorkerClient(String host, int port, long heartbeatIntervalMs, int readTimeoutMs) {
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException("host must not be blank");
         }
@@ -86,9 +100,13 @@ public class WorkerClient {
         if (heartbeatIntervalMs <= 0) {
             throw new IllegalArgumentException("heartbeatIntervalMs must be positive, got: " + heartbeatIntervalMs);
         }
+        if (readTimeoutMs <= 0) {
+            throw new IllegalArgumentException("readTimeoutMs must be positive, got: " + readTimeoutMs);
+        }
         this.host = host;
         this.port = port;
         this.heartbeatIntervalMs = heartbeatIntervalMs;
+        this.readTimeoutMs = readTimeoutMs;
     }
 
     /**
@@ -131,6 +149,7 @@ public class WorkerClient {
         RETRY_POLICY.execute(() -> {
             LOG.info("Connecting to manager at {}:{}...", host, port);
             socket = new Socket(host, port);
+            socket.setSoTimeout(readTimeoutMs);
             LOG.info("Connected to manager at {}", socket.getRemoteSocketAddress());
         });
 
@@ -192,10 +211,24 @@ public class WorkerClient {
     private void runMainLoop(InputStream in, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) throws IOException {
         LOG.info("Worker {} entering main loop, waiting for commands...", workerId);
 
+        int consecutiveTimeouts = 0;
+        final int MAX_TIMEOUTS = 3;
+
         while (running) {
             Message message;
             try {
                 message = ProtocolDecoder.decode(in);
+                consecutiveTimeouts = 0; // reset on successful read
+            } catch (SocketTimeoutException e) {
+                if (!running) break;
+                consecutiveTimeouts++;
+                LOG.debug("Worker {}: read timeout {}/{}", workerId, consecutiveTimeouts, MAX_TIMEOUTS);
+
+                if (consecutiveTimeouts >= MAX_TIMEOUTS) {
+                    LOG.warn("Worker {}: disconnecting aggressively after {} consecutive read timeouts.", workerId, MAX_TIMEOUTS);
+                    break;
+                }
+                continue;
             } catch (EOFException e) {
                 LOG.info("Worker {}: manager closed the connection (stream ended).", workerId);
                 return;

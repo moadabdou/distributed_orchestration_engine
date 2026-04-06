@@ -22,6 +22,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
+    @ExceptionHandler(com.doe.manager.scheduler.JobQueueFullException.class)
+    public ResponseEntity<Object> handleJobQueueFullException(com.doe.manager.scheduler.JobQueueFullException ex) {
+        return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+    }
+
     private ResponseEntity<Object> buildErrorResponse(HttpStatus status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", Instant.now());

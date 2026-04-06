@@ -371,4 +371,55 @@ class WorkerClientIntegrationTest {
                     "Client thread should have exited after shutdown()");
         }
     }
+    // ──── Timeout & Reconnect ────────────────────────────────────────────────
+    
+    @Test
+    @DisplayName("Client disconnects aggressively after 3 consecutive read timeouts")
+    void mainLoop_disconnectsOnConsecutiveTimeouts() throws Exception {
+        CountDownLatch reconnected = new CountDownLatch(1);
+
+        try (ServerSocket serverSocket = new ServerSocket(0)) {
+            int port = serverSocket.getLocalPort();
+            
+            Thread.ofVirtual().start(() -> {
+                try {
+                    // First connection
+                    try (Socket conn1 = serverSocket.accept()) {
+                        conn1.setSoTimeout(SERVER_TIMEOUT_MS);
+                        ProtocolDecoder.decode(conn1.getInputStream()); // consume REGISTER_WORKER
+                        
+                        JsonObject ack = new JsonObject();
+                        ack.addProperty("workerId", UUID.randomUUID().toString());
+                        ack.addProperty("status", "registered");
+                        OutputStream out = conn1.getOutputStream();
+                        out.write(ProtocolEncoder.encode(MessageType.REGISTER_ACK, GSON.toJson(ack)));
+                        out.flush();
+                        
+                        // We do NOT send any further messages to simulate a dead connection
+                        // The client will hit its readTimeoutMs = 100ms three times in ~300ms, then drop us.
+                        // We keep trying to read until we hit EOF (meaning client closed).
+                        try {
+                            while (conn1.getInputStream().read() != -1) { }
+                        } catch (Exception expected) { }
+                    }
+                    
+                    // Second connection: validates that the client disconnected from the first and retried
+                    try (Socket conn2 = serverSocket.accept()) {
+                        conn2.setSoTimeout(SERVER_TIMEOUT_MS);
+                        var msg = ProtocolDecoder.decode(conn2.getInputStream());
+                        if (msg.type() == MessageType.REGISTER_WORKER) {
+                            reconnected.countDown();
+                        }
+                    }
+                } catch (Exception ignored) {}
+            });
+
+            // Set very short readTimeoutMs for the test (100ms)
+            client = new WorkerClient("localhost", port, 5000, 100);
+            clientThread = Thread.ofVirtual().start(client::start);
+
+            assertTrue(reconnected.await(5, TimeUnit.SECONDS),
+                    "Client should have aggressively disconnected and reconnected after consecutive timeouts");
+        }
+    }
 }
