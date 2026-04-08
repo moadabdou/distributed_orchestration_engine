@@ -292,7 +292,7 @@ public class ManagerServer implements SmartLifecycle {
         // Persist worker registration — extract IP from socket
         String ipAddress = (socket.getRemoteSocketAddress() instanceof InetSocketAddress addr)
                 ? addr.getHostString() : "unknown";
-        eventListener.onWorkerRegistered(workerId, hostname, ipAddress, connection.getConnectedAt());
+        eventListener.onWorkerRegistered(workerId, hostname, ipAddress, connection.getMaxCapacity(), connection.getConnectedAt());
 
         // Make worker available to scheduler only after successful DB persistence
         registry.register(connection);
@@ -380,10 +380,9 @@ public class ManagerServer implements SmartLifecycle {
 
         if (!workerId.equals(job.getAssignedWorkerId())) {
             LOG.warn("Worker {}: ignored JOB_RESULT for job {} (no longer assigned to this worker)", workerId, job.getId());
-            // It's possible the capacity was implicitly returned via a timeout rollback, 
+            // It's possible the capacity was implicitly returned via a timeout rollback,
             // but we can make sure by calling releaseCapacity here too.
             registry.releaseCapacity(workerId, jobId);
-            eventListener.onWorkerIdle(workerId);
             return;
         }
 
@@ -407,7 +406,6 @@ public class ManagerServer implements SmartLifecycle {
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to terminal state: {}", workerId, job.getId(), e.getMessage());
         } finally {
-            eventListener.onWorkerIdle(workerId);
             LOG.info("Worker {}: released capacity after job {}", workerId, job.getId());
             registry.releaseCapacity(workerId, job.getId());
         }

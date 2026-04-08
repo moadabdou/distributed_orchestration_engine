@@ -30,7 +30,7 @@ public class WorkerControllerTest {
     void listWorkers_ReturnsListOfWorkers() throws Exception {
         UUID workerId = UUID.randomUUID();
         WorkerResponse mockResponse = new WorkerResponse(
-                workerId, "worker-1", "127.0.0.1", WorkerStatus.BUSY, Instant.now()
+                workerId, "worker-1", "127.0.0.1", WorkerStatus.ONLINE, Instant.now()
         );
 
         Mockito.when(workerService.listWorkers()).thenReturn(List.of(mockResponse));
@@ -39,6 +39,6 @@ public class WorkerControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(workerId.toString()))
                 .andExpect(jsonPath("$[0].hostname").value("worker-1"))
-                .andExpect(jsonPath("$[0].status").value("BUSY"));
+                .andExpect(jsonPath("$[0].status").value("ONLINE"));
     }
 }

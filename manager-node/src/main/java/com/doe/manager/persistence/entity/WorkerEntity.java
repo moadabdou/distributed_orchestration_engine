@@ -31,6 +31,12 @@ public class WorkerEntity {
     @Column(name = "status", nullable = false, length = 20)
     private WorkerStatus status;
 
+    @Column(name = "max_capacity", nullable = false)
+    private int maxCapacity = 4;
+
+    @Column(name = "active_job_count", nullable = false)
+    private int activeJobCount = 0;
+
     @Column(name = "last_heartbeat", nullable = false)
     private Instant lastHeartbeat;
 
@@ -41,11 +47,13 @@ public class WorkerEntity {
     protected WorkerEntity() {}
 
     public WorkerEntity(UUID id, String hostname, String ipAddress,
-                        WorkerStatus status, Instant lastHeartbeat, Instant registeredAt) {
+                        WorkerStatus status, int maxCapacity, Instant lastHeartbeat, Instant registeredAt) {
         this.id = id;
         this.hostname = hostname;
         this.ipAddress = ipAddress;
         this.status = status;
+        this.maxCapacity = maxCapacity;
+        this.activeJobCount = 0;
         this.lastHeartbeat = lastHeartbeat;
         this.registeredAt = registeredAt;
     }
@@ -56,10 +64,14 @@ public class WorkerEntity {
     public String getHostname()          { return hostname; }
     public String getIpAddress()         { return ipAddress; }
     public WorkerStatus getStatus()      { return status; }
+    public int getMaxCapacity()          { return maxCapacity; }
+    public int getActiveJobCount()       { return activeJobCount; }
     public Instant getLastHeartbeat()    { return lastHeartbeat; }
     public Instant getRegisteredAt()     { return registeredAt; }
 
     public void setStatus(WorkerStatus status)          { this.status = status; }
+    public void setMaxCapacity(int maxCapacity)         { this.maxCapacity = maxCapacity; }
+    public void setActiveJobCount(int activeJobCount)   { this.activeJobCount = activeJobCount; }
     public void setLastHeartbeat(Instant lastHeartbeat) { this.lastHeartbeat = lastHeartbeat; }
     public void setHostname(String hostname)            { this.hostname = hostname; }
     public void setIpAddress(String ipAddress)          { this.ipAddress = ipAddress; }

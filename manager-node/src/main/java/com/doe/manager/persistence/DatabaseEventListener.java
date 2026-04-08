@@ -96,25 +96,27 @@ public class DatabaseEventListener implements EngineEventListener {
 
     @Override
     @Transactional
-    public void onWorkerRegistered(UUID workerId, String hostname, String ipAddress, Instant registeredAt) {
+    public void onWorkerRegistered(UUID workerId, String hostname, String ipAddress, int maxCapacity, Instant registeredAt) {
         workerRepository.findById(workerId).ifPresentOrElse(entity -> {
             entity.setHostname(hostname);
             entity.setIpAddress(ipAddress);
-            entity.setStatus(WorkerStatus.IDLE);
+            entity.setStatus(WorkerStatus.ONLINE);
+            entity.setMaxCapacity(maxCapacity);
             entity.setLastHeartbeat(registeredAt);
             workerRepository.save(entity);
-            LOG.debug("DB: updated worker {} (hostname={}, ip={})", workerId, hostname, ipAddress);
+            LOG.debug("DB: updated worker {} (hostname={}, ip={}, capacity={})", workerId, hostname, ipAddress, maxCapacity);
         }, () -> {
             WorkerEntity entity = new WorkerEntity(
                     workerId,
                     hostname,
                     ipAddress,
-                    WorkerStatus.IDLE,
+                    WorkerStatus.ONLINE,
+                    maxCapacity,
                     registeredAt,
                     registeredAt
             );
             workerRepository.save(entity);
-            LOG.debug("DB: inserted worker {} (hostname={}, ip={})", workerId, hostname, ipAddress);
+            LOG.debug("DB: inserted worker {} (hostname={}, ip={}, capacity={})", workerId, hostname, ipAddress, maxCapacity);
         });
     }
 
@@ -145,26 +147,6 @@ public class DatabaseEventListener implements EngineEventListener {
         }
     }
 
-    @Override
-    @Transactional
-    public void onWorkerBusy(UUID workerId) {
-        workerRepository.findById(workerId).ifPresentOrElse(entity -> {
-            entity.setStatus(WorkerStatus.BUSY);
-            workerRepository.save(entity);
-            LOG.debug("DB: worker {} → BUSY", workerId);
-        }, () -> LOG.warn("DB: onWorkerBusy — worker {} not found", workerId));
-    }
-
-    @Override
-    @Transactional
-    public void onWorkerIdle(UUID workerId) {
-        workerRepository.findById(workerId).ifPresentOrElse(entity -> {
-            entity.setStatus(WorkerStatus.IDLE);
-            workerRepository.save(entity);
-            LOG.debug("DB: worker {} → IDLE", workerId);
-        }, () -> LOG.warn("DB: onWorkerIdle — worker {} not found", workerId));
-    }
-
     // ─── Job events ──────────────────────────────────────────────────────────
 
     @Override
@@ -175,6 +157,8 @@ public class DatabaseEventListener implements EngineEventListener {
             entity.setWorkerId(workerId);
             entity.setUpdatedAt(updatedAt);
         }, "ASSIGNED");
+        
+        adjustWorkerJobCount(workerId, 1);
     }
 
     @Override
@@ -189,35 +173,58 @@ public class DatabaseEventListener implements EngineEventListener {
     @Override
     @Transactional
     public void onJobCompleted(UUID jobId, String result, Instant updatedAt) {
-        updateJobEntity(jobId, entity -> {
+        jobRepository.findById(jobId).ifPresent(entity -> {
+            UUID workerId = entity.getWorkerId();
             entity.setStatus(JobStatus.COMPLETED);
             entity.setResult(result);
             entity.setUpdatedAt(updatedAt);
-        }, "COMPLETED");
+            jobRepository.save(entity);
+            LOG.debug("DB: job {} → COMPLETED", jobId);
+            
+            if (workerId != null) adjustWorkerJobCount(workerId, -1);
+        });
     }
 
     @Override
     @Transactional
     public void onJobFailed(UUID jobId, String result, Instant updatedAt) {
-        updateJobEntity(jobId, entity -> {
+        jobRepository.findById(jobId).ifPresent(entity -> {
+            UUID workerId = entity.getWorkerId();
             entity.setStatus(JobStatus.FAILED);
             entity.setResult(result);
             entity.setUpdatedAt(updatedAt);
-        }, "FAILED");
+            jobRepository.save(entity);
+            LOG.debug("DB: job {} → FAILED", jobId);
+            
+            if (workerId != null) adjustWorkerJobCount(workerId, -1);
+        });
     }
 
     @Override
     @Transactional
     public void onJobRequeued(UUID jobId, int retryCount, Instant updatedAt) {
-        updateJobEntity(jobId, entity -> {
+        jobRepository.findById(jobId).ifPresent(entity -> {
+            UUID workerId = entity.getWorkerId();
             entity.setStatus(JobStatus.PENDING);
             entity.setWorkerId(null);
             entity.setRetryCount(retryCount);
             entity.setUpdatedAt(updatedAt);
-        }, "PENDING (requeued, retry=" + retryCount + ")");
+            jobRepository.save(entity);
+            LOG.debug("DB: job {} → PENDING (requeued, retry={})", jobId, retryCount);
+            
+            if (workerId != null) adjustWorkerJobCount(workerId, -1);
+        });
     }
 
     // ─── Internals ───────────────────────────────────────────────────────────
+
+    private void adjustWorkerJobCount(UUID workerId, int delta) {
+        workerRepository.findById(workerId).ifPresentOrElse(worker -> {
+            worker.setActiveJobCount(Math.max(0, worker.getActiveJobCount() + delta));
+            workerRepository.save(worker);
+            LOG.debug("DB: adjusted activeJobCount for worker {} by {} (now {})", workerId, delta, worker.getActiveJobCount());
+        }, () -> LOG.warn("DB: worker {} not found when adjusting activeJobCount", workerId));
+    }
 
     /**
      * Applies a mutation to a {@link JobEntity} and saves the result.

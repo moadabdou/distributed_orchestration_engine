@@ -54,7 +54,7 @@ class StartupRecoveryIntegrationTest {
     private WorkerEntity saveWorker(WorkerStatus status) {
         WorkerEntity w = new WorkerEntity(
                 UUID.randomUUID(), "host-" + UUID.randomUUID(), "10.0.0.1",
-                status, Instant.now(), Instant.now());
+                status, 4, Instant.now(), Instant.now());
         return workerRepository.save(w);
     }
 
@@ -71,8 +71,8 @@ class StartupRecoveryIntegrationTest {
     @DisplayName("Orphaned ASSIGNED and RUNNING jobs are reset to PENDING in DB and enqueued in-memory")
     void recover_resetsOrphansAndRebuildsQueue() {
         // Arrange: 2 workers (IDLE, BUSY), 3 jobs (ASSIGNED, RUNNING, PENDING)
-        WorkerEntity w1 = saveWorker(WorkerStatus.IDLE);
-        WorkerEntity w2 = saveWorker(WorkerStatus.BUSY);
+        WorkerEntity w1 = saveWorker(WorkerStatus.ONLINE);
+        WorkerEntity w2 = saveWorker(WorkerStatus.ONLINE);
 
         JobEntity assigned = saveJob(w1.getId(), JobStatus.ASSIGNED);
         JobEntity running  = saveJob(w2.getId(), JobStatus.RUNNING);
@@ -130,7 +130,7 @@ class StartupRecoveryIntegrationTest {
     @Test
     @DisplayName("retryCount from DB is preserved across recovery")
     void recover_preservesRetryCount() {
-        WorkerEntity w = saveWorker(WorkerStatus.BUSY);
+        WorkerEntity w = saveWorker(WorkerStatus.ONLINE);
         JobEntity entity = saveJob(w.getId(), JobStatus.RUNNING);
         entity.setRetryCount(2);
         jobRepository.save(entity);

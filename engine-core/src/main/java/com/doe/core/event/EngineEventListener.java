@@ -23,9 +23,10 @@ public interface EngineEventListener {
      * @param workerId     manager-assigned UUID for this worker
      * @param hostname     hostname extracted from the REGISTER_WORKER payload
      * @param ipAddress    remote IP of the worker socket
+     * @param maxCapacity  the maximum concurrent capacity for this worker
      * @param registeredAt moment of registration (from the domain object)
      */
-    void onWorkerRegistered(UUID workerId, String hostname, String ipAddress, Instant registeredAt);
+    void onWorkerRegistered(UUID workerId, String hostname, String ipAddress, int maxCapacity, Instant registeredAt);
 
     /**
      * Fired on every heartbeat received from a worker.
@@ -43,22 +44,6 @@ public interface EngineEventListener {
      * @param workerId the worker that died
      */
     void onWorkerDied(UUID workerId);
-
-    /**
-     * Fired when a worker transitions IDLE → BUSY (job successfully assigned and
-     * the socket write succeeded).
-     *
-     * @param workerId the worker that became busy
-     */
-    void onWorkerBusy(UUID workerId);
-
-    /**
-     * Fired when a worker returns to IDLE — either after finishing a job or after
-     * an assign rollback due to a socket error.
-     *
-     * @param workerId the worker that became idle
-     */
-    void onWorkerIdle(UUID workerId);
 
     // ─── Job events ──────────────────────────────────────────────────────────
 

@@ -71,7 +71,7 @@ class DatabaseEventListenerTest {
         UUID workerId = UUID.randomUUID();
         Instant now = Instant.now();
 
-        listener.onWorkerRegistered(workerId, "host-1", "10.0.0.1", now);
+        listener.onWorkerRegistered(workerId, "host-1", "10.0.0.1", 4, now);
 
         ArgumentCaptor<WorkerEntity> captor = ArgumentCaptor.forClass(WorkerEntity.class);
         verify(workerRepository).save(captor.capture());
@@ -80,7 +80,7 @@ class DatabaseEventListenerTest {
         assertThat(saved.getId()).isEqualTo(workerId);
         assertThat(saved.getHostname()).isEqualTo("host-1");
         assertThat(saved.getIpAddress()).isEqualTo("10.0.0.1");
-        assertThat(saved.getStatus()).isEqualTo(WorkerStatus.IDLE);
+        assertThat(saved.getStatus()).isEqualTo(WorkerStatus.ONLINE);
         assertThat(saved.getRegisteredAt()).isEqualTo(now);
     }
 
@@ -88,38 +88,12 @@ class DatabaseEventListenerTest {
     @DisplayName("onWorkerDied → sets worker status to OFFLINE")
     void onWorkerDied_setsOffline() {
         UUID workerId = UUID.randomUUID();
-        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.IDLE, Instant.now(), Instant.now());
+        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.ONLINE, 4, Instant.now(), Instant.now());
         when(workerRepository.findById(workerId)).thenReturn(Optional.of(entity));
 
         listener.onWorkerDied(workerId);
 
         assertThat(entity.getStatus()).isEqualTo(WorkerStatus.OFFLINE);
-        verify(workerRepository).save(entity);
-    }
-
-    @Test
-    @DisplayName("onWorkerBusy → sets worker status to BUSY")
-    void onWorkerBusy_setsBusy() {
-        UUID workerId = UUID.randomUUID();
-        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.IDLE, Instant.now(), Instant.now());
-        when(workerRepository.findById(workerId)).thenReturn(Optional.of(entity));
-
-        listener.onWorkerBusy(workerId);
-
-        assertThat(entity.getStatus()).isEqualTo(WorkerStatus.BUSY);
-        verify(workerRepository).save(entity);
-    }
-
-    @Test
-    @DisplayName("onWorkerIdle → sets worker status to IDLE")
-    void onWorkerIdle_setsIdle() {
-        UUID workerId = UUID.randomUUID();
-        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.BUSY, Instant.now(), Instant.now());
-        when(workerRepository.findById(workerId)).thenReturn(Optional.of(entity));
-
-        listener.onWorkerIdle(workerId);
-
-        assertThat(entity.getStatus()).isEqualTo(WorkerStatus.IDLE);
         verify(workerRepository).save(entity);
     }
 

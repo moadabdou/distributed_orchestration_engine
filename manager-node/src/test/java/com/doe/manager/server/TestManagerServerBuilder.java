@@ -16,11 +16,9 @@ public class TestManagerServerBuilder {
 
     /** A no-op listener used in integration tests that don't need a real DB. */
     public static final EngineEventListener NO_OP_LISTENER = new EngineEventListener() {
-        @Override public void onWorkerRegistered(UUID w, String h, String ip, Instant t) {}
+        @Override public void onWorkerRegistered(UUID w, String h, String ip, int c, Instant t) {}
         @Override public void onWorkerHeartbeat(UUID w, Instant t) {}
         @Override public void onWorkerDied(UUID w) {}
-        @Override public void onWorkerBusy(UUID w) {}
-        @Override public void onWorkerIdle(UUID w) {}
         @Override public void onJobAssigned(UUID j, UUID w, Instant t) {}
         @Override public void onJobRunning(UUID j, Instant t) {}
         @Override public void onJobCompleted(UUID j, String r, Instant t) {}

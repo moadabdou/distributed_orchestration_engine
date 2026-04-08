@@ -138,9 +138,8 @@ public class JobScheduler {
             // Record the reverse mapping: worker → job (for JOB_RESULT correlation)
             // MUST happen before sending to avoid race conditions with fast workers
 
-            // Notify DB that the worker is now BUSY and the job has been ASSIGNED
+            // Notify DB that the worker is now handling another job and the job has been ASSIGNED
             // MUST happen before sending to avoid out-of-order COMPLETED → ASSIGNED transitions
-            eventListener.onWorkerBusy(worker.getId());
             eventListener.onJobAssigned(job.getId(), worker.getId(), job.getUpdatedAt());
 
             // Build the ASSIGN_JOB envelope: { "jobId": "...", "payload": <original payload> }
@@ -166,7 +165,6 @@ public class JobScheduler {
             job.setAssignedWorkerId(null);
             
             // Notify DB about the rollback
-            eventListener.onWorkerIdle(worker.getId());
             eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
             
             // releaseCapacity() frees slot and re-offers worker if available
