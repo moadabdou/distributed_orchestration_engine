@@ -11,6 +11,7 @@ import com.doe.manager.scheduler.JobQueue;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +60,7 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public Page<JobResponse> listJobs(int page, int size, JobStatus status) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<JobEntity> entityPage;
         if (status != null) {
             entityPage = jobRepository.findByStatus(status, pageable);

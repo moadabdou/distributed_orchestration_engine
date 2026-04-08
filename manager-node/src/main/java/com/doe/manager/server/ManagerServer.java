@@ -362,6 +362,7 @@ public class ManagerServer implements SmartLifecycle {
 
         if (!workerId.equals(job.getAssignedWorkerId())) {
             LOG.warn("Worker {}: ignored JOB_RESULT for job {} (no longer assigned to this worker)", workerId, job.getId());
+            eventListener.onWorkerIdle(workerId);
             registry.markIdle(workerId);
             return;
         }
@@ -386,10 +387,10 @@ public class ManagerServer implements SmartLifecycle {
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to terminal state: {}", workerId, job.getId(), e.getMessage());
         } finally {
+            eventListener.onWorkerIdle(workerId);
+            LOG.info("Worker {}: marked IDLE after job {}", workerId, job.getId());
             // markIdle() clears currentJob and re-offers the worker to the idle queue
             registry.markIdle(workerId);
-            LOG.info("Worker {}: marked IDLE after job {}", workerId, job.getId());
-            eventListener.onWorkerIdle(workerId);
         }
     }
 
