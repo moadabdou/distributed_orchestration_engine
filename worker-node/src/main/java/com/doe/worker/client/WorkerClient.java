@@ -29,6 +29,9 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -71,6 +74,8 @@ public class WorkerClient {
     private final int readTimeoutMs;
     private final String authToken;
     private final TaskPluginRegistry registry;
+    private final ExecutorService jobExecutor;
+    private final ConcurrentHashMap<String, CompletableFuture<?>> activeJobs = new ConcurrentHashMap<>();
 
     private volatile boolean running = true;
     private volatile Socket socket;
@@ -136,6 +141,7 @@ public class WorkerClient {
         this.readTimeoutMs = readTimeoutMs;
         this.authToken = authToken;
         this.registry = registry;
+        this.jobExecutor = Executors.newFixedThreadPool(4);
     }
 
     /**
@@ -311,51 +317,58 @@ public class WorkerClient {
             return;
         }
 
-        // ── 2. Execute the task (hard wall: outer orTimeout; soft wall: plugin-level timeoutMs) ──
-        String status;
-        String output;
-        try {
-            String result = CompletableFuture
-                    .supplyAsync(() -> {
-                        try {
-                            return registry.execute(payloadJson);
-                        } catch (UnknownTaskTypeException ex) {
-                            // Surface as a clean FAILED result rather than an unexpected error
-                            throw new CompletionException(ex);
-                        } catch (Exception ex) {
-                            throw new CompletionException(ex);
+        // ── 2. Execute the task asynchronously ──────────────────────────────────
+        CompletableFuture<Void> future = CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        return registry.execute(payloadJson);
+                    } catch (UnknownTaskTypeException ex) {
+                        // Surface as a clean FAILED result rather than an unexpected error
+                        throw new CompletionException(ex);
+                    } catch (Exception ex) {
+                        throw new CompletionException(ex);
+                    }
+                }, jobExecutor)
+                .orTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .handle((result, ex) -> {
+                    String status;
+                    String output;
+                    if (ex != null) {
+                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                        status = "FAILED";
+                        output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+                        if (cause instanceof UnknownTaskTypeException) {
+                            LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobId, cause.getMessage());
+                        } else {
+                            LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
                         }
-                    })
-                    .orTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                    .join();
-            status = "COMPLETED";
-            output = result;
-            LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobId, output);
-        } catch (java.util.concurrent.CancellationException | CompletionException ex) {
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            status = "FAILED";
-            output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-            if (cause instanceof UnknownTaskTypeException) {
-                LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobId, cause.getMessage());
-            } else {
-                LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
-            }
-        }
+                    } else {
+                        status = "COMPLETED";
+                        output = result;
+                        LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobId, output);
+                    }
 
-        // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
-        try {
-            JsonObject resultBody = new JsonObject();
-            resultBody.addProperty("jobId", jobId);
-            resultBody.addProperty("status", status);
-            resultBody.addProperty("output", output);
-            byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
-            egressQueue.put(new OutboundMessage(resultBytes,
-                    e -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, e)));
-            LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
-        }
+                    activeJobs.remove(jobId);
+
+                    // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
+                    try {
+                        JsonObject resultBody = new JsonObject();
+                        resultBody.addProperty("jobId", jobId);
+                        resultBody.addProperty("status", status);
+                        resultBody.addProperty("output", output);
+                        byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
+                        egressQueue.put(new OutboundMessage(resultBytes,
+                                e -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, e)));
+                        LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
+                    }
+                    
+                    return null;
+                });
+                
+        activeJobs.put(jobId, future);
         // Worker stays in the loop — ready for the next ASSIGN_JOB
     }
 
@@ -426,6 +439,7 @@ public class WorkerClient {
     public void shutdown() {
         LOG.info("WorkerClient shutdown requested.");
         running = false;
+        jobExecutor.shutdownNow();
         Socket s = socket;
         if (s != null && !s.isClosed()) {
             try {
