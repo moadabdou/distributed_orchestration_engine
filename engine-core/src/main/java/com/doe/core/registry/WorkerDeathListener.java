@@ -12,5 +12,5 @@ public interface WorkerDeathListener {
      *
      * @param workerId the ID of the dead worker
      */
-    void onWorkerDeath(UUID workerId);
+    void onWorkerDeath(UUID workerId, java.util.Set<UUID> activeJobs);
 }

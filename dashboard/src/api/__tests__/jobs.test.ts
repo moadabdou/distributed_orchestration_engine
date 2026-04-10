@@ -38,8 +38,8 @@ describe('Jobs API', () => {
   });
 
   it('should create a new job via POST request', async () => {
-    const requestPayload = { payload: { type: 'test' } };
-    const mockJobResponse = { id: '456', status: 'PENDING', payload: { type: 'test' }, result: null, workerId: null, createdAt: '2026-04-06T00:00:00', updatedAt: '2026-04-06T00:00:00' };
+    const requestPayload = { payload: JSON.stringify({ type: 'test' }) };
+    const mockJobResponse = { id: '456', status: 'PENDING', payload: JSON.stringify({ type: 'test' }), result: null, workerId: null, createdAt: '2026-04-06T00:00:00', updatedAt: '2026-04-06T00:00:00' };
 
     mock.onPost('/jobs').reply(200, mockJobResponse);
 

@@ -4,7 +4,6 @@ import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.WorkerStatus;
 import com.doe.manager.persistence.entity.JobEntity;
-import com.doe.manager.persistence.entity.WorkerEntity;
 import com.doe.manager.persistence.repository.JobRepository;
 import com.doe.manager.persistence.repository.WorkerRepository;
 import com.doe.manager.scheduler.JobQueue;

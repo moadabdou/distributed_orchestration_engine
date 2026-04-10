@@ -1,15 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSystemStats } from '../hooks/useSystemStats';
 import { useQuery } from '@tanstack/react-query';
 import { getJobs } from '../api/jobs';
 import WorkerNodesPanel from '../components/WorkerNodesPanel';
 import JobRow from '../components/JobRow';
-import { Loader2, Activity, Users, Box, Hexagon, PlaySquare, Award } from 'lucide-react';
+import { Loader2, Activity, Users, Box, Hexagon, PlaySquare, CheckCircle, XCircle, Slash, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const RecentActivityFeed: React.FC = () => {
+  const [page, setPage] = useState(0);
   const { data: recent, isLoading } = useQuery({
-    queryKey: ['activityFeed'],
-    queryFn: () => getJobs(0, 10, undefined, 'updatedAt,desc'),
+    queryKey: ['activityFeed', page],
+    queryFn: () => getJobs(page, 10, undefined, 'updatedAt,desc'),
     refetchInterval: 2500,
   });
 
@@ -29,6 +30,31 @@ const RecentActivityFeed: React.FC = () => {
            recent?.content.map(job => <JobRow key={`act-${job.id}`} job={job} />)
         )}
       </div>
+
+      {/* Pagination Footer */}
+      {(recent?.totalPages ? recent.totalPages > 1 : false) && (
+        <div className="flex items-center justify-between pt-4 border-t border-white/30 text-sm font-semibold text-slate-500">
+          <div>
+            Showing page {recent!.number + 1} of {recent!.totalPages}
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              disabled={page === 0}
+              onClick={() => setPage(page - 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/50 border border-transparent disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button 
+              disabled={page >= recent!.totalPages - 1}
+              onClick={() => setPage(page + 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/50 border border-transparent disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -44,13 +70,15 @@ const DashboardHome: React.FC = () => {
     { label: 'Total Jobs', value: stats?.totalJobs ?? mockZero, icon: Box, color: 'text-blue-500' },
     { label: 'Pending Jobs', value: stats?.pendingJobs ?? mockZero, icon: Activity, color: 'text-slate-500' },
     { label: 'Running Jobs', value: stats?.runningJobs ?? mockZero, icon: PlaySquare, color: 'text-purple-500' },
-    { label: 'Success Rate', value: `${stats?.completionRate ?? mockZero}%`, icon: Award, color: 'text-emerald-500' },
+    { label: 'Completed Jobs', value: stats?.completedJobs ?? mockZero, icon: CheckCircle, color: 'text-emerald-500' },
+    { label: 'Failed Jobs', value: stats?.failedJobs ?? mockZero, icon: XCircle, color: 'text-red-500' },
+    { label: 'Cancelled', value: stats?.cancelledJobs ?? mockZero, icon: Slash, color: 'text-slate-400' },
   ];
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-6">
       {/* Top Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 flex-shrink-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 flex-shrink-0">
         {metricCards.map((card, i) => (
           <div key={i} className="glass-card p-4 flex flex-col justify-between h-28 relative overflow-hidden group">
             <div className={`absolute -right-4 -top-4 w-16 h-16 ${card.color} opacity-10 group-hover:opacity-20 transition-opacity rounded-full mix-blend-multiply dark:mix-blend-screen blur-xl`}></div>

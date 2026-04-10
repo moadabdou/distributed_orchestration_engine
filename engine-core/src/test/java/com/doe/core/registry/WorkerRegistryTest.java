@@ -1,15 +1,13 @@
 package com.doe.core.registry;
 
-import com.doe.core.model.Job;
 import com.doe.core.model.WorkerConnection;
-import com.doe.core.model.WorkerStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import java.net.Socket;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,168 +15,171 @@ import static org.junit.jupiter.api.Assertions.*;
 class WorkerRegistryTest {
 
     private WorkerRegistry registry;
-    private final Socket stubSocket = new Socket(); // dummy unconnected socket
+    private Socket stubSocket;
 
     @BeforeEach
     void setUp() {
         registry = new WorkerRegistry();
+        stubSocket = new Socket(); // dummy
     }
 
     @Test
-    void register_addsToIdleQueue() throws InterruptedException {
+    void register_addsToAvailableQueue() throws InterruptedException {
         WorkerConnection worker = new WorkerConnection(UUID.randomUUID(), stubSocket);
         registry.register(worker);
 
-        // findIdle should return immediately without blocking since it's in the queue
-        WorkerConnection found = registry.findIdle();
+        UUID testJobId = UUID.randomUUID();
+        WorkerConnection found = registry.findAvailableWorker(testJobId);
         
-        assertNotNull(found, "Should find the registered worker");
-        assertEquals(worker.getId(), found.getId(), "Should be the same worker");
-        assertEquals(WorkerStatus.BUSY, found.getStatus(), "Worker should be marked BUSY by findIdle");
+        assertEquals(worker, found);
+        assertEquals(1, found.getActiveJobCount());
+        assertTrue(found.getActiveJobs().contains(testJobId));
     }
 
     @Test
-    void findIdle_blocksUntilWorkerAvailable_and_markIdle_wakesThread() throws InterruptedException {
-        WorkerConnection worker = new WorkerConnection(UUID.randomUUID(), stubSocket);
-        registry.register(worker);
-        
-        // Take the only worker so the queue is empty
-        registry.findIdle();
-
-        CountDownLatch blockingStarted = new CountDownLatch(1);
-        CountDownLatch workerAcquired = new CountDownLatch(1);
+    void findAvailableWorker_blocksUntilAvailable() throws InterruptedException {
+        CountDownLatch acquired = new CountDownLatch(1);
         AtomicReference<WorkerConnection> acquiredWorker = new AtomicReference<>();
 
-        Thread schedulerThread = new Thread(() -> {
+        Thread t = new Thread(() -> {
             try {
-                blockingStarted.countDown(); // signal test thread that we are about to block
-                acquiredWorker.set(registry.findIdle());
-                workerAcquired.countDown(); // signal test thread that we woke up
+                acquiredWorker.set(registry.findAvailableWorker(UUID.randomUUID()));
+                acquired.countDown();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        schedulerThread.start();
+        t.start();
 
-        // Wait to ensure the thread is blocking in findIdle()
-        assertTrue(blockingStarted.await(1, TimeUnit.SECONDS));
-        
-        // At this point workerAcquired latch is still 1, meaning the thread is blocked.
-        // Re-offer the worker by calling markIdle
-        registry.markIdle(worker.getId());
+        // Give thread time to block
+        assertFalse(acquired.await(100, TimeUnit.MILLISECONDS), "Thread should block if queue is empty");
 
-        // Now the thread should unblock almost immediately
-        assertTrue(workerAcquired.await(2, TimeUnit.SECONDS), "Thread should unblock after markIdle");
-        assertNotNull(acquiredWorker.get());
-        assertEquals(worker.getId(), acquiredWorker.get().getId());
-    }
-
-    @Test
-    void unregister_drainsStaleDuringFindIdle() throws InterruptedException {
-        WorkerConnection worker1 = new WorkerConnection(UUID.randomUUID(), stubSocket);
-        WorkerConnection worker2 = new WorkerConnection(UUID.randomUUID(), stubSocket);
-        
-        // Both enter the idle queue
-        registry.register(worker1);
-        registry.register(worker2);
-
-        // Disconnect worker1
-        registry.unregister(worker1.getId());
-
-        // findIdle should discard the stale worker1 and return worker2
-        WorkerConnection found = registry.findIdle();
-        
-        assertEquals(worker2.getId(), found.getId(), "Should skip unregistered worker");
-    }
-
-    @Test
-    void doubleOffer_casGuardCatchesBug() throws InterruptedException {
         WorkerConnection worker = new WorkerConnection(UUID.randomUUID(), stubSocket);
         registry.register(worker);
 
-        // Get the worker, marking it BUSY
-        WorkerConnection firstFind = registry.findIdle();
-        assertEquals(WorkerStatus.BUSY, firstFind.getStatus());
-
-        // Simulate a bug where the idle queue is bypassed and the item is re-offered manually 
-        // without setting the status back to IDLE.
-        // Wait, markIdle DOES set it to IDLE. To simulate a double-offer bug, we simulate
-        // calling markIdle twice.
-        registry.markIdle(worker.getId());
-        
-        // Take it out again to make it BUSY
-        WorkerConnection secondFind = registry.findIdle();
-        assertEquals(WorkerStatus.BUSY, secondFind.getStatus());
-        
-        // It's BUSY now. What if markIdle is called, then another thread calls it before
-        // the first thread actually takes it?
-        registry.markIdle(worker.getId());
-        
-        // Now it's IDLE and in queue.
-        // Let's manually set it to BUSY to bypass CAS logic externally, simulating
-        // the double-offer bug condition where take() gets a BUSY worker.
-        WorkerConnection secondWorker = new WorkerConnection(UUID.randomUUID(), stubSocket);
-        registry.register(secondWorker);
-        
-        // To test the exact CAS branch:
-        // Worker 1 is in queue, but we make it BUSY.
-        worker.trySetBusy();
-        
-        // findIdle() pulls worker1, fails CAS, continues and pulls worker2
-        WorkerConnection found = registry.findIdle();
-        
-        assertEquals(secondWorker.getId(), found.getId());
+        assertTrue(acquired.await(2, TimeUnit.SECONDS), "Thread should unblock after worker is registered");
+        assertNotNull(acquiredWorker.get());
+        assertEquals(1, acquiredWorker.get().getActiveJobCount());
     }
 
     @Test
-    void concurrentFindIdle_noDuplicateAssignments() throws InterruptedException {
-        int workerCount = 10;
-        int threadCount = 10;
-        
-        for (int i = 0; i < workerCount; i++) {
-            registry.register(new WorkerConnection(UUID.randomUUID(), stubSocket));
+    void releaseCapacity_makesWorkerAvailableAgain() throws InterruptedException {
+        WorkerConnection worker = new WorkerConnection(UUID.randomUUID(), stubSocket);
+        registry.register(worker);
+
+        // Max it out
+        for (int i = 0; i < worker.getMaxCapacity(); i++) {
+            UUID j = UUID.randomUUID();
+            WorkerConnection found = registry.findAvailableWorker(j);
+            assertEquals(worker, found);
         }
-
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch allDone = new CountDownLatch(threadCount);
         
-        AtomicInteger totalAssigned = new AtomicInteger(0);
+        assertEquals(worker.getMaxCapacity(), worker.getActiveJobCount());
 
-        for (int i = 0; i < threadCount; i++) {
-            Thread t = new Thread(() -> {
+        // Should block if we try to find another
+        AtomicReference<WorkerConnection> additional = new AtomicReference<>();
+        CountDownLatch additionalLatch = new CountDownLatch(1);
+        UUID overflowJob = UUID.randomUUID();
+        
+        Thread t = new Thread(() -> {
+            try {
+                additional.set(registry.findAvailableWorker(overflowJob));
+                additionalLatch.countDown();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        t.start();
+        
+        assertFalse(additionalLatch.await(100, TimeUnit.MILLISECONDS));
+        
+        // Release 1 job
+        UUID jobToRelease = worker.getActiveJobs().iterator().next();
+        registry.releaseCapacity(worker.getId(), jobToRelease);
+        
+        assertTrue(additionalLatch.await(2, TimeUnit.SECONDS));
+        assertNotNull(additional.get());
+        assertTrue(worker.getActiveJobs().contains(overflowJob));
+    }
+
+    @Test
+    void findAvailableWorker_concurrentLastSlotReservation() throws InterruptedException {
+        WorkerConnection worker = new WorkerConnection(UUID.randomUUID(), stubSocket);
+        registry.register(worker);
+        
+        // consume all but 1 capacity
+        for (int i = 0; i < worker.getMaxCapacity() - 1; i++) {
+            registry.findAvailableWorker(UUID.randomUUID());
+        }
+        
+        assertEquals(worker.getMaxCapacity() - 1, worker.getActiveJobCount());
+
+        int numThreads = 10;
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch doneLatch = new CountDownLatch(numThreads);
+        
+        AtomicReference<WorkerConnection> successfulAcquisition = new AtomicReference<>(null);
+
+        for (int i = 0; i < numThreads; i++) {
+            UUID testJobId = UUID.randomUUID();
+            new Thread(() -> {
                 try {
-                    startLatch.await(); // wait for all threads to be ready
-                    WorkerConnection w = registry.findIdle();
+                    startLatch.await();
+                    // One thread will get the last slot, the others will block indefinitely on this call 
+                    // until more capacity is released or another worker added. But since we use interrupt below, it's fine.
+                    WorkerConnection w = registry.findAvailableWorker(testJobId);
                     if (w != null) {
-                        assertEquals(WorkerStatus.BUSY, w.getStatus(), "Worker must be BUSY");
-                        totalAssigned.incrementAndGet();
+                        successfulAcquisition.set(w);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } finally {
-                    allDone.countDown();
+                    doneLatch.countDown();
                 }
-            });
-            t.start();
+            }).start();
         }
-
-        // Unleash all threads at once
+        
         startLatch.countDown();
         
-        assertTrue(allDone.await(5, TimeUnit.SECONDS), "All threads should complete");
-        assertEquals(workerCount, totalAssigned.get(), "Each worker should be assigned exactly once");
-
-        // Registry queue should be empty, next call should block (verifying with a short timeout via interrupted exception)
-        Thread testBlocking = new Thread(() -> {
-            try {
-                registry.findIdle();
-            } catch (InterruptedException e) {
-                // Expected
+        // give threads chance to compete
+        Thread.sleep(100); 
+        
+        assertEquals(worker.getMaxCapacity(), worker.getActiveJobCount());
+        assertNotNull(successfulAcquisition.get(), "At least one thread should have acquired the last slot");
+        
+        // Interrupt waiting threads to let doneLatch complete
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (t.getState() == Thread.State.WAITING || t.getState() == Thread.State.TIMED_WAITING) {
+                // simple interrupt strategy for the test
+                t.interrupt();
             }
-        });
-        testBlocking.start();
-        testBlocking.join(100);
-        assertTrue(testBlocking.isAlive(), "Queue should be empty and block");
-        testBlocking.interrupt();
+        }
     }
+
+    @Test
+    void releaseCapacity_rogueReleaseDoesNotCauseErrors() throws InterruptedException {
+        // Test double release or releasing unknown job
+        WorkerConnection worker = new WorkerConnection(UUID.randomUUID(), stubSocket);
+        registry.register(worker);
+        
+        UUID jobId = UUID.randomUUID();
+        registry.findAvailableWorker(jobId);
+        assertEquals(1, worker.getActiveJobCount());
+
+        // First valid release
+        registry.releaseCapacity(worker.getId(), jobId);
+        assertEquals(0, worker.getActiveJobCount());
+
+        // Rogue: Double release
+        registry.releaseCapacity(worker.getId(), jobId);
+        assertEquals(0, worker.getActiveJobCount());
+
+        // Rogue: Unknown job
+        registry.releaseCapacity(worker.getId(), UUID.randomUUID());
+        assertEquals(0, worker.getActiveJobCount());
+        
+        // Rogue: Unknown worker
+        registry.releaseCapacity(UUID.randomUUID(), UUID.randomUUID());
+    }
+
 }

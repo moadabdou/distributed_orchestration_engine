@@ -30,7 +30,7 @@ public class WorkerControllerTest {
     void listWorkers_ReturnsListOfWorkers() throws Exception {
         UUID workerId = UUID.randomUUID();
         WorkerResponse mockResponse = new WorkerResponse(
-                workerId, "worker-1", "127.0.0.1", WorkerStatus.BUSY, Instant.now()
+                workerId, "worker-1", "127.0.0.1", WorkerStatus.ONLINE, 4, 1, Instant.now()
         );
 
         Mockito.when(workerService.listWorkers()).thenReturn(List.of(mockResponse));
@@ -39,6 +39,26 @@ public class WorkerControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(workerId.toString()))
                 .andExpect(jsonPath("$[0].hostname").value("worker-1"))
-                .andExpect(jsonPath("$[0].status").value("BUSY"));
+                .andExpect(jsonPath("$[0].status").value("ONLINE"))
+                .andExpect(jsonPath("$[0].maxCapacity").value(4))
+                .andExpect(jsonPath("$[0].activeJobCount").value(1));
+    }
+
+    @Test
+    void getWorker_ReturnsWorker() throws Exception {
+        UUID workerId = UUID.randomUUID();
+        WorkerResponse mockResponse = new WorkerResponse(
+                workerId, "worker-2", "192.168.1.100", WorkerStatus.ONLINE, 8, 2, Instant.now()
+        );
+
+        Mockito.when(workerService.getWorker(workerId)).thenReturn(mockResponse);
+
+        mockMvc.perform(get("/api/v1/workers/{workerId}", workerId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(workerId.toString()))
+                .andExpect(jsonPath("$.hostname").value("worker-2"))
+                .andExpect(jsonPath("$.status").value("ONLINE"))
+                .andExpect(jsonPath("$.maxCapacity").value(8))
+                .andExpect(jsonPath("$.activeJobCount").value(2));
     }
 }

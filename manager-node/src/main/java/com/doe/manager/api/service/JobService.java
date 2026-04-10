@@ -8,6 +8,7 @@ import com.doe.manager.api.exception.ResourceNotFoundException;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.repository.JobRepository;
 import com.doe.manager.scheduler.JobQueue;
+import com.doe.manager.server.ManagerServer;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,10 +23,12 @@ public class JobService {
 
     private final JobRepository jobRepository;
     private final JobQueue jobQueue;
+    private final ManagerServer managerServer;
 
-    public JobService(JobRepository jobRepository, JobQueue jobQueue) {
+    public JobService(JobRepository jobRepository, JobQueue jobQueue, ManagerServer managerServer) {
         this.jobRepository = jobRepository;
         this.jobQueue = jobQueue;
+        this.managerServer = managerServer;
     }
 
     @Transactional
@@ -56,6 +59,52 @@ public class JobService {
         return jobRepository.findById(id)
                 .map(this::mapToResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Job not found with id: " + id));
+    }
+
+    @Transactional
+    public void cancelJob(UUID id) {
+        JobEntity entity = jobRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found with id: " + id));
+
+        JobStatus status = entity.getStatus();
+
+        if (status == JobStatus.COMPLETED || status == JobStatus.FAILED || status == JobStatus.CANCELLED) {
+            throw new IllegalStateException("Cannot cancel a job that is already in a terminal state: " + status);
+        }
+
+        if (status == JobStatus.PENDING) {
+            // Eager cancel in database
+            entity.setStatus(JobStatus.CANCELLED);
+            entity.setResult("Cancelled via API before assignment");
+            entity.setUpdatedAt(java.time.Instant.now());
+            jobRepository.save(entity);
+
+            // Eager cancel in memory so JobScheduler drops it
+            managerServer.getJobRegistry().get(id).ifPresent(job -> {
+                try {
+                    job.transition(JobStatus.CANCELLED);
+                    job.setResult("Cancelled via API before assignment");
+                } catch (IllegalStateException e) {
+                    // Ignore concurrent state transition race
+                }
+            });
+            return;
+        }
+        
+        // Assigned or Running means it has a worker ID (or is about to be sent).
+        // By changing its memory state, we might cause conflicts, so we safely send the CANCEL_JOB message
+        // and allow the worker/manager interaction to clean it up via the JOB_RESULT.
+        UUID workerId = entity.getWorkerId();
+        if (workerId == null) {
+             managerServer.getJobRegistry().get(id).ifPresent(job -> {
+                 UUID inMemWorkerId = job.getAssignedWorkerId();
+                 if (inMemWorkerId != null) {
+                     managerServer.sendCancelJob(inMemWorkerId, id);
+                 }
+             });
+        } else {
+             managerServer.sendCancelJob(workerId, id);
+        }
     }
 
     @Transactional(readOnly = true)

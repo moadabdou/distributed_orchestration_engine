@@ -14,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionCallbackWithoutResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -43,6 +42,9 @@ class DatabaseEventListenerTest {
     @Mock
     private TransactionTemplate transactionTemplate;
 
+    @Mock
+    private com.doe.core.registry.WorkerRegistry workerRegistry;
+
     private DatabaseEventListener listener;
 
     @BeforeEach
@@ -54,7 +56,7 @@ class DatabaseEventListenerTest {
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
 
-        listener = new DatabaseEventListener(workerRepository, jobRepository, transactionTemplate);
+        listener = new DatabaseEventListener(workerRepository, jobRepository, transactionTemplate, workerRegistry);
         // Manually invoke the @PostConstruct callback
         listener.init();
     }
@@ -72,7 +74,7 @@ class DatabaseEventListenerTest {
         UUID workerId = UUID.randomUUID();
         Instant now = Instant.now();
 
-        listener.onWorkerRegistered(workerId, "host-1", "10.0.0.1", now);
+        listener.onWorkerRegistered(workerId, "host-1", "10.0.0.1", 4, now);
 
         ArgumentCaptor<WorkerEntity> captor = ArgumentCaptor.forClass(WorkerEntity.class);
         verify(workerRepository).save(captor.capture());
@@ -81,7 +83,7 @@ class DatabaseEventListenerTest {
         assertThat(saved.getId()).isEqualTo(workerId);
         assertThat(saved.getHostname()).isEqualTo("host-1");
         assertThat(saved.getIpAddress()).isEqualTo("10.0.0.1");
-        assertThat(saved.getStatus()).isEqualTo(WorkerStatus.IDLE);
+        assertThat(saved.getStatus()).isEqualTo(WorkerStatus.ONLINE);
         assertThat(saved.getRegisteredAt()).isEqualTo(now);
     }
 
@@ -89,38 +91,12 @@ class DatabaseEventListenerTest {
     @DisplayName("onWorkerDied → sets worker status to OFFLINE")
     void onWorkerDied_setsOffline() {
         UUID workerId = UUID.randomUUID();
-        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.IDLE, Instant.now(), Instant.now());
+        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.ONLINE, 4, Instant.now(), Instant.now());
         when(workerRepository.findById(workerId)).thenReturn(Optional.of(entity));
 
         listener.onWorkerDied(workerId);
 
         assertThat(entity.getStatus()).isEqualTo(WorkerStatus.OFFLINE);
-        verify(workerRepository).save(entity);
-    }
-
-    @Test
-    @DisplayName("onWorkerBusy → sets worker status to BUSY")
-    void onWorkerBusy_setsBusy() {
-        UUID workerId = UUID.randomUUID();
-        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.IDLE, Instant.now(), Instant.now());
-        when(workerRepository.findById(workerId)).thenReturn(Optional.of(entity));
-
-        listener.onWorkerBusy(workerId);
-
-        assertThat(entity.getStatus()).isEqualTo(WorkerStatus.BUSY);
-        verify(workerRepository).save(entity);
-    }
-
-    @Test
-    @DisplayName("onWorkerIdle → sets worker status to IDLE")
-    void onWorkerIdle_setsIdle() {
-        UUID workerId = UUID.randomUUID();
-        WorkerEntity entity = new WorkerEntity(workerId, "host", "ip", WorkerStatus.BUSY, Instant.now(), Instant.now());
-        when(workerRepository.findById(workerId)).thenReturn(Optional.of(entity));
-
-        listener.onWorkerIdle(workerId);
-
-        assertThat(entity.getStatus()).isEqualTo(WorkerStatus.IDLE);
         verify(workerRepository).save(entity);
     }
 
@@ -192,14 +168,16 @@ class DatabaseEventListenerTest {
     @DisplayName("onJobCompleted → updates job status=COMPLETED and result")
     void onJobCompleted_updatesEntity() {
         UUID jobId = UUID.randomUUID();
+        UUID workerId = UUID.randomUUID();
         Instant now = Instant.now();
         JobEntity entity = jobEntity(jobId, JobStatus.RUNNING);
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(entity));
 
-        listener.onJobCompleted(jobId, "done", now);
+        listener.onJobCompleted(jobId, workerId, "done", now);
 
         assertThat(entity.getStatus()).isEqualTo(JobStatus.COMPLETED);
         assertThat(entity.getResult()).isEqualTo("done");
+        assertThat(entity.getWorkerId()).isEqualTo(workerId);
         assertThat(entity.getUpdatedAt()).isEqualTo(now);
         verify(jobRepository).save(entity);
     }
@@ -208,14 +186,16 @@ class DatabaseEventListenerTest {
     @DisplayName("onJobFailed → updates job status=FAILED and result")
     void onJobFailed_updatesEntity() {
         UUID jobId = UUID.randomUUID();
+        UUID workerId = UUID.randomUUID();
         Instant now = Instant.now();
         JobEntity entity = jobEntity(jobId, JobStatus.RUNNING);
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(entity));
 
-        listener.onJobFailed(jobId, "boom", now);
+        listener.onJobFailed(jobId, workerId, "boom", now);
 
         assertThat(entity.getStatus()).isEqualTo(JobStatus.FAILED);
         assertThat(entity.getResult()).isEqualTo("boom");
+        assertThat(entity.getWorkerId()).isEqualTo(workerId);
         assertThat(entity.getUpdatedAt()).isEqualTo(now);
         verify(jobRepository).save(entity);
     }

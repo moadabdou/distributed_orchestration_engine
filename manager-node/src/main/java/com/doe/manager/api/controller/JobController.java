@@ -38,4 +38,10 @@ public class JobController {
     public JobResponse getJob(@PathVariable("id") UUID id) {
         return jobService.getJob(id);
     }
+
+    @PostMapping("/{id}/cancel")
+    public JobResponse cancelJob(@PathVariable("id") UUID id) {
+        jobService.cancelJob(id);
+        return jobService.getJob(id);
+    }
 }

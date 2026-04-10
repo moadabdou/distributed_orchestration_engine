@@ -13,3 +13,5 @@ With `WorkerConnection` structurally modeling concurrent assignments, our `JobSc
 - [ ] Ensure thread-safe loop operations; workers are skipped if actively saturating their maximum theoretical boundary.
 - [ ] Reconfigure the REST metrics dashboards to accurately chart utilization rates (`activeJobs / maxCapacity` across the entire registry array).
 - [ ] Construct integration load tests routing 10 simultaneous rapid-fire jobs directly at two active quad-capacity workers to verify complete parallel occupation without artificial drops in throughput latency.
+- [ ] Remove hardcoded ANSI color codes (`\u001B[31m`) in `WorkerConnection` logging to prevent log pollution in production systems.
+- [ ] Externalize the `maxCapacity` limit (currently hardcoded to 4) to an `application.yml` property for dynamic scaling configuration.

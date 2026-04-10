@@ -10,6 +10,7 @@ import java.util.Set;
  * PENDING ──→ ASSIGNED ──→ RUNNING ──→ COMPLETED
  *                 │            │
  *                 │            └──→ FAILED
+ *                 │            └──→ CANCELLED
  *                 │
  *                 └──→ PENDING  (re-queue on timeout, failed assignment)
  * </pre>
@@ -19,21 +20,21 @@ public enum JobStatus {
     PENDING {
         @Override
         public Set<JobStatus> validTransitions() {
-            return EnumSet.of(ASSIGNED);
+            return EnumSet.of(ASSIGNED, CANCELLED);
         }
     },
 
     ASSIGNED {
         @Override
         public Set<JobStatus> validTransitions() {
-            return EnumSet.of(RUNNING, PENDING);
+            return EnumSet.of(RUNNING, PENDING, CANCELLED);
         }
     },
 
     RUNNING {
         @Override
         public Set<JobStatus> validTransitions() {
-            return EnumSet.of(COMPLETED, FAILED, PENDING);
+            return EnumSet.of(COMPLETED, FAILED, CANCELLED, PENDING);
         }
     },
 
@@ -45,6 +46,13 @@ public enum JobStatus {
     },
 
     FAILED {
+        @Override
+        public Set<JobStatus> validTransitions() {
+            return EnumSet.noneOf(JobStatus.class);
+        }
+    },
+
+    CANCELLED {
         @Override
         public Set<JobStatus> validTransitions() {
             return EnumSet.noneOf(JobStatus.class);

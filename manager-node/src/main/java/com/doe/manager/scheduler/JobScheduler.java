@@ -100,14 +100,21 @@ public class JobScheduler {
                     continue;
                 }
 
+                if (job.getStatus() == com.doe.core.model.JobStatus.CANCELLED) {
+                    LOG.info("Job {} was cancelled before assignment, dropping from queue", job.getId());
+                    continue;
+                }
+
                 // Blocks until an IDLE worker is available — no busy-waiting
-                WorkerConnection worker = registry.findIdle();
+                WorkerConnection worker = registry.findAvailableWorker(job.getId());
 
                 assignJob(job, worker);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LOG.debug("Scheduler thread interrupted, stopping");
+            } catch (Exception e) {
+                LOG.error("Unexpected error in scheduling loop, attempting to recover", e);
             }
         }
     }
@@ -137,11 +144,9 @@ public class JobScheduler {
         try {
             // Record the reverse mapping: worker → job (for JOB_RESULT correlation)
             // MUST happen before sending to avoid race conditions with fast workers
-            worker.setCurrentJob(job);
 
-            // Notify DB that the worker is now BUSY and the job has been ASSIGNED
+            // Notify DB that the worker is now handling another job and the job has been ASSIGNED
             // MUST happen before sending to avoid out-of-order COMPLETED → ASSIGNED transitions
-            eventListener.onWorkerBusy(worker.getId());
             eventListener.onJobAssigned(job.getId(), worker.getId(), job.getUpdatedAt());
 
             // Build the ASSIGN_JOB envelope: { "jobId": "...", "payload": <original payload> }
@@ -167,11 +172,10 @@ public class JobScheduler {
             job.setAssignedWorkerId(null);
             
             // Notify DB about the rollback
-            eventListener.onWorkerIdle(worker.getId());
             eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
             
-            // markIdle() clears currentJob and re-offers the worker to the idle queue
-            registry.markIdle(worker.getId());
+            // releaseCapacity() frees slot and re-offers worker if available
+            registry.releaseCapacity(worker.getId(), job.getId());
             // Re-insert at the head of the queue so it is retried promptly
             queue.requeue(job);
         }

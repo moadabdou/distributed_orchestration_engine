@@ -7,22 +7,24 @@ export const useSystemStats = () => {
     queryKey: ['systemStats'],
     queryFn: async () => {
       // Concurrently fetch counts via size=1 limit trick to reduce payload
-      const [workers, totalJobs, pendingJobs, runningJobs, completedJobs, failedJobs] = await Promise.all([
+      const [workers, totalJobs, pendingJobs, runningJobs, completedJobs, failedJobs, cancelledJobs] = await Promise.all([
         getWorkers(),
         getJobs(0, 1),
         getJobs(0, 1, 'PENDING'),
         getJobs(0, 1, 'RUNNING'),
         getJobs(0, 1, 'COMPLETED'),
-        getJobs(0, 1, 'FAILED')
+        getJobs(0, 1, 'FAILED'),
+        getJobs(0, 1, 'CANCELLED')
       ]);
 
-      const activeWorkers = workers.filter(w => w.status === 'BUSY' || w.status === 'IDLE');
+      const activeWorkers = workers.filter(w => w.status === 'ONLINE');
       
       const completedCount = completedJobs.totalElements;
       const failedCount = failedJobs.totalElements;
-      const completionRate = (completedCount + failedCount) === 0 
-        ? 100 // if no jobs have finished/failed, they haven't failed essentially.
-        : Math.round((completedCount / (completedCount + failedCount)) * 100);
+      const cancelledCount = cancelledJobs.totalElements;
+      const completionRate = (completedCount + failedCount + cancelledCount) === 0 
+        ? 100 // if no jobs have finished/failed/cancelled, they haven't failed essentially.
+        : Math.round((completedCount / (completedCount + failedCount + cancelledCount)) * 100);
 
       return {
         totalWorkers: workers.length,
@@ -30,6 +32,9 @@ export const useSystemStats = () => {
         totalJobs: totalJobs.totalElements,
         pendingJobs: pendingJobs.totalElements,
         runningJobs: runningJobs.totalElements,
+        completedJobs: completedCount,
+        failedJobs: failedCount,
+        cancelledJobs: cancelledCount,
         completionRate
       };
     },

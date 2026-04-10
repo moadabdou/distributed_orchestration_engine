@@ -9,6 +9,8 @@ public record WorkerResponse(
         String hostname,
         String ipAddress,
         WorkerStatus status,
+        int maxCapacity,
+        int activeJobCount,
         Instant lastHeartbeat
 ) {
 }

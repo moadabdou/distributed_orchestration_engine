@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Shield, Moon, Sun, LayoutDashboard, Cpu, ListTodo, Menu, X } from 'lucide-react';
+import { Server, Moon, Sun, LayoutDashboard, Cpu, ListTodo, Menu, X } from 'lucide-react';
 import { Outlet, NavLink } from 'react-router-dom';
+import frierenLogo from '../assets/frieren.png';
 
 const DashboardLayout: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -43,7 +44,7 @@ const DashboardLayout: React.FC = () => {
       {/* Mobile Hamburger Header (Only visible on small screens) */}
       <div className="md:hidden absolute top-0 left-0 right-0 p-4 z-50 flex items-center justify-between glass-panel rounded-t-none border-t-0 shadow-sm">
         <div className="flex items-center gap-3">
-           <Shield className="w-5 h-5 text-purple-500 dark:text-mint-400" />
+           <img src={frierenLogo} alt="Frieren Logo" className="w-6 h-auto drop-shadow-md" />
            <span className="font-semibold text-slate-700 dark:text-slate-200">FernOS</span>
         </div>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 bg-white/20 dark:bg-white/5 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300">
@@ -56,8 +57,8 @@ const DashboardLayout: React.FC = () => {
         <div>
           {/* Brand */}
           <div className="flex items-center gap-4 mb-10 hidden md:flex">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr flex items-center justify-center flex-shrink-0 shadow-lg" style={{ background: 'linear-gradient(to top right, #c084fc, #6ee7b7)' }}>
-              <Shield className="text-white w-6 h-6" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr flex items-center justify-center flex-shrink-0 shadow-[0_0_15px_rgba(192,132,252,0.4)]" style={{ background: 'linear-gradient(to top right, #331f4a, #1a2f3a)' }}>
+              <img src={frierenLogo} alt="Frieren Logo" className="w-10 h-auto translate-y-[-2px] drop-shadow-lg" />
             </div>
             <h1 className="text-xl font-semibold text-slate-700 dark:text-slate-200 tracking-tight text-glow">
               FernOS

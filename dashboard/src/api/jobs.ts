@@ -30,3 +30,8 @@ export const createJob = async (payload: CreateJobRequest): Promise<Job> => {
   const response = await apiClient.post<Job>('/jobs', payload);
   return response.data;
 };
+
+export const cancelJob = async (id: string): Promise<Job> => {
+  const response = await apiClient.post<Job>(`/jobs/${id}/cancel`);
+  return response.data;
+};

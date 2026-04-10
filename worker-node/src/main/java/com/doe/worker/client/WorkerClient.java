@@ -29,6 +29,10 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -71,6 +75,8 @@ public class WorkerClient {
     private final int readTimeoutMs;
     private final String authToken;
     private final TaskPluginRegistry registry;
+    private final ExecutorService jobExecutor;
+    private final ConcurrentHashMap<String, Future<?>> activeJobs = new ConcurrentHashMap<>();
 
     private volatile boolean running = true;
     private volatile Socket socket;
@@ -136,6 +142,7 @@ public class WorkerClient {
         this.readTimeoutMs = readTimeoutMs;
         this.authToken = authToken;
         this.registry = registry;
+        this.jobExecutor = Executors.newFixedThreadPool(4);
     }
 
     /**
@@ -243,23 +250,14 @@ public class WorkerClient {
     private void runMainLoop(InputStream in, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) throws IOException {
         LOG.info("Worker {} entering main loop, waiting for commands...", workerId);
 
-        int consecutiveTimeouts = 0;
-        final int MAX_TIMEOUTS = 3;
-
         while (running) {
             Message message;
             try {
                 message = ProtocolDecoder.decode(in);
-                consecutiveTimeouts = 0; // reset on successful read
             } catch (SocketTimeoutException e) {
                 if (!running) break;
-                consecutiveTimeouts++;
-                LOG.debug("Worker {}: read timeout {}/{}", workerId, consecutiveTimeouts, MAX_TIMEOUTS);
-
-                if (consecutiveTimeouts >= MAX_TIMEOUTS) {
-                    LOG.warn("Worker {}: disconnecting aggressively after {} consecutive read timeouts.", workerId, MAX_TIMEOUTS);
-                    break;
-                }
+                // Reading from the input stream timed out because the manager hasn't sent any commands.
+                // This is normal and expected when idle. We just loop and continue waiting.
                 continue;
             } catch (EOFException e) {
                 LOG.info("Worker {}: manager closed the connection (stream ended).", workerId);
@@ -273,6 +271,7 @@ public class WorkerClient {
 
             switch (message.type()) {
                 case ASSIGN_JOB -> handleAssignJob(message, egressQueue, workerId);
+                case CANCEL_JOB -> handleCancelJob(message, workerId);
                 default -> LOG.warn("Worker {}: unexpected message type: {}",
                         workerId, message.type());
             }
@@ -311,52 +310,81 @@ public class WorkerClient {
             return;
         }
 
-        // ── 2. Execute the task (hard wall: outer orTimeout; soft wall: plugin-level timeoutMs) ──
-        String status;
-        String output;
-        try {
-            String result = CompletableFuture
-                    .supplyAsync(() -> {
-                        try {
-                            return registry.execute(payloadJson);
-                        } catch (UnknownTaskTypeException ex) {
-                            // Surface as a clean FAILED result rather than an unexpected error
-                            throw new CompletionException(ex);
-                        } catch (Exception ex) {
-                            throw new CompletionException(ex);
-                        }
-                    })
-                    .orTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                    .join();
-            status = "COMPLETED";
-            output = result;
-            LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobId, output);
-        } catch (java.util.concurrent.CancellationException | CompletionException ex) {
-            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-            status = "FAILED";
-            output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
-            if (cause instanceof UnknownTaskTypeException) {
-                LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobId, cause.getMessage());
-            } else {
-                LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
-            }
-        }
+        // ── 2. Execute the task asynchronously ──────────────────────────────────
+        Future<String> taskFuture = jobExecutor.submit(() -> registry.execute(payloadJson));
+        activeJobs.put(jobId, taskFuture);
 
-        // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
-        try {
-            JsonObject resultBody = new JsonObject();
-            resultBody.addProperty("jobId", jobId);
-            resultBody.addProperty("status", status);
-            resultBody.addProperty("output", output);
-            byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
-            egressQueue.put(new OutboundMessage(resultBytes,
-                    e -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, e)));
-            LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
-        }
+        Thread.ofVirtual().name("job-waiter-" + jobId).start(() -> {
+            String status;
+            String output;
+            try {
+                String result = taskFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
+                status = "COMPLETED";
+                output = result;
+                LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobId, output);
+            } catch (java.util.concurrent.TimeoutException e) {
+                taskFuture.cancel(true);
+                status = "FAILED";
+                output = "Job execution timed out after " + timeoutMs + "ms";
+                LOG.warn("Worker {}: job {} FAILED — timeout", workerId, jobId);
+            } catch (java.util.concurrent.CancellationException e) {
+                status = "CANCELLED";
+                output = "Job was cancelled by the manager";
+                LOG.info("Worker {}: job {} CANCELLED", workerId, jobId);
+            } catch (java.util.concurrent.ExecutionException e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                if (cause instanceof InterruptedException) {
+                    status = "CANCELLED";
+                    output = "Job was cancelled by the manager";
+                    LOG.info("Worker {}: job {} CANCELLED", workerId, jobId);
+                } else {
+                    status = "FAILED";
+                    output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
+                    if (cause instanceof UnknownTaskTypeException) {
+                        LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobId, cause.getMessage());
+                    } else {
+                        LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
+                    }
+                }
+            } catch (InterruptedException e) {
+                status = "CANCELLED";
+                output = "Job was cancelled by the manager";
+                LOG.info("Worker {}: job {} CANCELLED", workerId, jobId);
+            }
+
+            activeJobs.remove(jobId);
+
+            // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
+            try {
+                JsonObject resultBody = new JsonObject();
+                resultBody.addProperty("jobId", jobId);
+                resultBody.addProperty("status", status);
+                resultBody.addProperty("output", output);
+                byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
+                egressQueue.put(new OutboundMessage(resultBytes,
+                        err -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, err)));
+                LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
+            }
+        });
         // Worker stays in the loop — ready for the next ASSIGN_JOB
+    }
+
+    private void handleCancelJob(Message message, UUID workerId) {
+        JsonObject envelope = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+        String jobId = envelope.has("jobId") ? envelope.get("jobId").getAsString() : "unknown";
+
+        LOG.info("Worker {}: received CANCEL_JOB — jobId={}", workerId, jobId);
+
+        Future<?> future = activeJobs.get(jobId);
+        if (future != null) {
+            boolean cancelled = future.cancel(true);
+            LOG.info("Worker {}: attempting to cancel job {} — successful: {}", workerId, jobId, cancelled);
+        } else {
+            LOG.warn("Worker {}: received CANCEL_JOB for unknown or already completed job {}", workerId, jobId);
+        }
     }
 
     /**
@@ -406,7 +434,7 @@ public class WorkerClient {
                 egressQueue.put(new OutboundMessage(heartbeatBytes, e -> 
                         LOG.error("Worker {}: failed to send HEARTBEAT", workerId, e)
                 ));
-                LOG.debug("Worker {}: sent HEARTBEAT", workerId);
+                // LOG.debug("Worker {}: sent HEARTBEAT", workerId);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -426,6 +454,7 @@ public class WorkerClient {
     public void shutdown() {
         LOG.info("WorkerClient shutdown requested.");
         running = false;
+        jobExecutor.shutdownNow();
         Socket s = socket;
         if (s != null && !s.isClosed()) {
             try {

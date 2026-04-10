@@ -23,7 +23,7 @@ const JobsView: React.FC = () => {
       {/* Header controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/30 pb-4">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-medium text-slate-700 tracking-wide flex items-center gap-2">
+          <h2 className="text-2xl font-medium text-slate-700 dark:text-slate-200 tracking-wide flex items-center gap-2">
             JOBS
             <div className="relative flex h-3 w-3 ml-2" title="Live Polling Active">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -35,27 +35,28 @@ const JobsView: React.FC = () => {
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {/* Status Filter */}
           <div className="relative flex-1 sm:flex-none">
-            <Filter className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Filter className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <select
-              className="w-full sm:w-auto pl-9 pr-8 py-2 bg-white/50 border border-white/60 rounded-xl text-sm font-semibold text-slate-600 outline-none focus:ring-2 focus:ring-purple-300 appearance-none cursor-pointer hover:bg-white/70 transition-colors"
+              className="w-full sm:w-auto pl-9 pr-8 py-2 bg-white/50 dark:bg-white/5 border border-white/60 dark:border-white/10 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 outline-none focus:ring-2 focus:ring-purple-300 appearance-none cursor-pointer hover:bg-white/70 dark:hover:bg-white/10 transition-colors"
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value as any);
                 setPage(0); // reset page on filter change
               }}
             >
-              <option value="">All Statuses</option>
-              <option value="PENDING">Pending</option>
-              <option value="ASSIGNED">Assigned</option>
-              <option value="RUNNING">Running</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="FAILED">Failed</option>
+              <option value="" className="dark:bg-slate-800">All Statuses</option>
+              <option value="PENDING" className="dark:bg-slate-800">Pending</option>
+              <option value="ASSIGNED" className="dark:bg-slate-800">Assigned</option>
+              <option value="RUNNING" className="dark:bg-slate-800">Running</option>
+              <option value="COMPLETED" className="dark:bg-slate-800">Completed</option>
+              <option value="FAILED" className="dark:bg-slate-800">Failed</option>
+              <option value="CANCELLED" className="dark:bg-slate-800">Cancelled</option>
             </select>
           </div>
 
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex-shrink-0 flex items-center justify-center w-10 h-10 sm:w-auto sm:px-4 sm:py-2 gap-2 bg-white/50 hover:bg-white border border-white/60 rounded-xl text-purple-600 font-bold transition-all shadow-sm"
+            className="flex-shrink-0 flex items-center justify-center w-10 h-10 sm:w-auto sm:px-4 sm:py-2 gap-2 bg-white/50 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 border border-white/60 dark:border-white/10 rounded-xl text-purple-600 dark:text-purple-400 font-bold transition-all shadow-sm"
           >
             <Plus className="w-5 h-5" />
             <span className="hidden sm:block">Submit Job</span>
