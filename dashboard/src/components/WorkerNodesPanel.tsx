@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getWorkers } from '../api/workers';
 import WorkerCard from './WorkerCard';
@@ -10,6 +10,11 @@ const WorkerNodesPanel: React.FC = () => {
     queryFn: getWorkers,
     refetchInterval: 2000,
   });
+
+  // Stabilize worker order to prevent visual shuffling during polling
+  const sortedWorkers = useMemo(() => {
+    return [...(workers || [])].sort((a, b) => a.id.localeCompare(b.id));
+  }, [workers]);
 
   return (
     <div className="glass-panel p-6 flex flex-col h-full gap-4 relative">
@@ -35,7 +40,7 @@ const WorkerNodesPanel: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-max overflow-y-auto pr-2 custom-scrollbar">
-          {workers?.map(worker => (
+          {sortedWorkers?.map(worker => (
             <WorkerCard key={worker.id} worker={worker} />
           ))}
         </div>

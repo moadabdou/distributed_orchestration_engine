@@ -29,7 +29,7 @@ public class WorkerConnection {
     private final Instant connectedAt;
     private final AtomicReference<Instant> lastHeartbeat;
     
-    private final int maxCapacity = 4;
+    private final int maxCapacity;
     private final AtomicInteger activeJobCount = new AtomicInteger(0);
     private final Set<UUID> activeJobs = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean inAvailableQueue = new AtomicBoolean(false);
@@ -41,16 +41,31 @@ public class WorkerConnection {
      * @param socket the TCP socket connected to the worker
      */
     public WorkerConnection(UUID id, Socket socket) {
+        this(id, socket, 4);
+    }
+
+    /**
+     * Creates a new worker connection with a specified capacity.
+     *
+     * @param id          unique identifier for this worker
+     * @param socket      the TCP socket connected to the worker
+     * @param maxCapacity the maximum number of concurrent jobs this worker can handle
+     */
+    public WorkerConnection(UUID id, Socket socket, int maxCapacity) {
         if (id == null) {
             throw new IllegalArgumentException("Worker ID must not be null");
         }
         if (socket == null) {
             throw new IllegalArgumentException("Socket must not be null");
         }
+        if (maxCapacity <= 0) {
+            throw new IllegalArgumentException("maxCapacity must be positive, got: " + maxCapacity);
+        }
         this.id = id;
         this.socket = socket;
         this.connectedAt = Instant.now();
         this.lastHeartbeat = new AtomicReference<>(this.connectedAt);
+        this.maxCapacity = maxCapacity;
     }
 
     public UUID getId() {
@@ -105,7 +120,7 @@ public class WorkerConnection {
             }
             if (activeJobCount.compareAndSet(current, current + 1)) {
                 activeJobs.add(jobId);
-                LOG.info("\u001B[31mJob {} assigned to worker {}. Active jobs: {}\u001B[0m", jobId, id, current + 1);
+                LOG.info("Job {} assigned to worker {}. Active jobs: {}", jobId, id, current + 1);
                 return true;
             }
         }
@@ -117,7 +132,7 @@ public class WorkerConnection {
     public void releaseCapacity(UUID jobId) {
         if (activeJobs.remove(jobId)) {
             int remaining = activeJobCount.decrementAndGet();
-            LOG.info("\u001B[31mJob {} unassigned from worker {}. Active jobs: {}\u001B[0m", jobId, id, remaining);
+            LOG.info("Job {} unassigned from worker {}. Active jobs: {}", jobId, id, remaining);
         }
     }
 

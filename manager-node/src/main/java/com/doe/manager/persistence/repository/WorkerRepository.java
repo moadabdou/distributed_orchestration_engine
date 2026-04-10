@@ -19,6 +19,14 @@ import java.util.UUID;
 public interface WorkerRepository extends JpaRepository<WorkerEntity, UUID> {
 
     /**
+     * Finds all workers ordered by registration time (oldest first).
+     *
+     * @return list of workers sorted by registeredAt ascending
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT w FROM WorkerEntity w ORDER BY w.registeredAt ASC")
+    List<WorkerEntity> findAllOrderedByRegisteredAt();
+
+    /**
      * Finds all workers with the given status.
      *
      * @param status the status to filter by

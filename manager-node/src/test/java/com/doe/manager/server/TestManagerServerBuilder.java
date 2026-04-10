@@ -34,7 +34,7 @@ public class TestManagerServerBuilder {
         JobScheduler jobScheduler = new JobScheduler(jobQueue, registry, NO_OP_LISTENER);
         CrashRecoveryHandler recoveryHandler = new CrashRecoveryHandler(jobRegistry, jobQueue, NO_OP_LISTENER);
         JobTimeoutMonitor jobTimeoutMonitor = new JobTimeoutMonitor(jobRegistry, recoveryHandler);
-        return new ManagerServer(port, check, timeout, "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z", registry, jobRegistry, jobScheduler, jobTimeoutMonitor,
+        return new ManagerServer(port, check, timeout, "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z", 4, registry, jobRegistry, jobScheduler, jobTimeoutMonitor,
                 NO_OP_LISTENER, List.of(recoveryHandler));
     }
 

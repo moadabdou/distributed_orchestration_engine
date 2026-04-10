@@ -68,6 +68,7 @@ public class ManagerServer implements SmartLifecycle {
     private final JobTimeoutMonitor jobTimeoutMonitor;
     private final EngineEventListener eventListener;
     private final List<WorkerDeathListener> workerDeathListeners = new CopyOnWriteArrayList<>();
+    private final int defaultWorkerMaxCapacity;
 
     private volatile boolean running;
     private ServerSocket serverSocket;
@@ -82,6 +83,7 @@ public class ManagerServer implements SmartLifecycle {
             @Value("${fernos.heartbeat.check.interval:5000}") long heartbeatCheckIntervalMs,
             @Value("${fernos.heartbeat.timeout:15000}") long heartbeatTimeoutMs,
             @Value("${manager.security.jwt.secret:default-secret}") String jwtSecret,
+            @Value("${manager.worker.default-max-capacity:4}") int defaultWorkerMaxCapacity,
             WorkerRegistry registry,
             JobRegistry jobRegistry,
             JobScheduler jobScheduler,
@@ -105,6 +107,7 @@ public class ManagerServer implements SmartLifecycle {
         this.jobTimeoutMonitor = jobTimeoutMonitor;
         this.eventListener = eventListener;
         this.jwtSecretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        this.defaultWorkerMaxCapacity = defaultWorkerMaxCapacity;
         
         if (workerDeathListeners != null) {
             this.workerDeathListeners.addAll(workerDeathListeners);
@@ -272,7 +275,7 @@ public class ManagerServer implements SmartLifecycle {
             throw new IOException("Invalid auth_token", e);
         }
 
-        WorkerConnection connection = new WorkerConnection(workerId, socket);
+        WorkerConnection connection = new WorkerConnection(workerId, socket, defaultWorkerMaxCapacity);
 
         LOG.info("Worker {} connected from {} (hostname: {})", workerId, connection.getRemoteAddress(), hostname);
 

@@ -624,4 +624,148 @@ class JobSchedulerIntegrationTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("10 rapid-fire jobs across two quad-capacity workers — verify full parallel occupation")
+    void tenRapidFireJobs_twoQuadCapacityWorkers_fullParallelOccupation() throws Exception {
+        int numWorkers = 2;
+        int numJobs = 10;
+        int workerMaxCapacity = 4;
+
+        List<Socket> workerSockets = new ArrayList<>();
+        List<UUID> workerIds = new ArrayList<>();
+        AtomicInteger assignmentsReceived = new AtomicInteger(0);
+        CountDownLatch allAssigned = new CountDownLatch(numJobs);
+        CountDownLatch allCompleted = new CountDownLatch(numJobs);
+        long[] assignmentTimestamps = new long[numJobs];
+        AtomicInteger idx = new AtomicInteger(0);
+
+        try {
+            // 1. Connect 2 workers (each with maxCapacity=4)
+            for (int i = 0; i < numWorkers; i++) {
+                Socket ws = new Socket("localhost", server.getLocalPort());
+                ws.setSoTimeout(10_000);
+                workerSockets.add(ws);
+                UUID wid = registerWorker(ws);
+                workerIds.add(wid);
+
+                // Pre-fill each worker to its max capacity so we verify the scheduler fills both
+                server.getRegistry().get(wid).ifPresent(w -> {
+                    for (int j = 0; j < workerMaxCapacity; j++) {
+                        w.tryReserveCapacity(UUID.randomUUID());
+                    }
+                });
+            }
+
+            Thread.sleep(200);
+            assertEquals(2, server.getRegistry().size(), "Both workers should be registered");
+
+            // Verify both workers are at max capacity
+            for (UUID wid : workerIds) {
+                assertEquals(workerMaxCapacity,
+                        server.getRegistry().get(wid).orElseThrow().getActiveJobCount(),
+                        "Worker should be at max capacity before test");
+            }
+
+            // 2. Enqueue all 10 jobs simultaneously
+            JobQueue queue = server.getJobScheduler().getQueue();
+            List<Job> jobs = new ArrayList<>();
+            for (int i = 0; i < numJobs; i++) {
+                Job job = Job.newJob("{\"cmd\":\"rapid-" + i + "\"}").build();
+                jobs.add(job);
+                queue.enqueue(job);
+            }
+
+            // 3. Immediately free all pre-filled capacity so scheduler can assign real jobs
+            for (UUID wid : workerIds) {
+                server.getRegistry().get(wid).ifPresent(w ->
+                        new ArrayList<>(w.getActiveJobs()).forEach(j -> server.getRegistry().releaseCapacity(wid, j)));
+            }
+
+            // 4. Each worker reads ASSIGN_JOB messages and completes them rapidly
+            for (int i = 0; i < numWorkers; i++) {
+                final Socket ws = workerSockets.get(i);
+                final UUID wid = workerIds.get(i);
+
+                Thread.ofVirtual().start(() -> {
+                    try {
+                        InputStream in = ws.getInputStream();
+                        OutputStream out = ws.getOutputStream();
+                        while (!Thread.currentThread().isInterrupted()) {
+                            Message msg = ProtocolDecoder.decode(in);
+                            if (msg.type() == MessageType.ASSIGN_JOB) {
+                                int currentIdx = idx.getAndIncrement();
+                                assignmentTimestamps[currentIdx] = System.nanoTime();
+                                assignmentsReceived.incrementAndGet();
+                                allAssigned.countDown();
+
+                                JsonObject payload = GSON.fromJson(msg.payloadAsString(), JsonObject.class);
+                                String jobId = payload.get("jobId").getAsString();
+
+                                // Send JOB_RUNNING
+                                JsonObject runningBody = new JsonObject();
+                                runningBody.addProperty("jobId", jobId);
+                                out.write(ProtocolEncoder.encode(MessageType.JOB_RUNNING, GSON.toJson(runningBody)));
+                                out.flush();
+
+                                // Send JOB_RESULT immediately (rapid fire)
+                                JsonObject resultBody = new JsonObject();
+                                resultBody.addProperty("jobId", jobId);
+                                resultBody.addProperty("status", "COMPLETED");
+                                resultBody.addProperty("output", "rapid-done");
+                                out.write(ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody)));
+                                out.flush();
+
+                                allCompleted.countDown();
+                            }
+                        }
+                    } catch (IOException ignored) {}
+                });
+            }
+
+            // 5. Verify all 10 jobs are assigned
+            assertTrue(allAssigned.await(5, TimeUnit.SECONDS),
+                    "Expected 10 ASSIGN_JOB messages but only received " + assignmentsReceived.get());
+
+            // 6. Verify all 10 jobs complete
+            assertTrue(allCompleted.await(5, TimeUnit.SECONDS),
+                    "Expected 10 job completions but only received " + allCompleted.getCount() + " remaining");
+
+            // 7. Verify all jobs are COMPLETED in registry
+            Thread.sleep(200);
+            for (Job job : jobs) {
+                Job persisted = server.getJobRegistry().get(job.getId()).orElseThrow();
+                assertEquals(JobStatus.COMPLETED, persisted.getStatus(),
+                        "Job " + job.getId() + " should be COMPLETED");
+            }
+
+            // 8. Verify both workers were utilized (parallel occupation)
+            int totalAssignments = assignmentsReceived.get();
+            assertEquals(numJobs, totalAssignments, "All 10 jobs should have been assigned");
+
+            // 9. Print timing distribution for verification
+            long minTime = Long.MAX_VALUE;
+            long maxTime = Long.MIN_VALUE;
+            for (long ts : assignmentTimestamps) {
+                if (ts > 0) {
+                    if (ts < minTime) minTime = ts;
+                    if (ts > maxTime) maxTime = ts;
+                }
+            }
+            long spanMs = (maxTime - minTime) / 1_000_000;
+            System.out.println("Rapid-fire job assignment span: " + spanMs + "ms (first to last)");
+
+            // Verify workers are back to 0 active jobs
+            for (UUID wid : workerIds) {
+                assertEquals(0,
+                        server.getRegistry().get(wid).orElseThrow().getActiveJobCount(),
+                        "Worker should have 0 active jobs after all complete");
+            }
+
+        } finally {
+            for (Socket ws : workerSockets) {
+                try { ws.close(); } catch (IOException ignored) {}
+            }
+        }
+    }
 }

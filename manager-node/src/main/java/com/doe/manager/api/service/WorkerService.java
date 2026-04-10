@@ -23,7 +23,7 @@ public class WorkerService {
     // we dont need pagination for workers since we expect a small number of them, but we can easily add it later if needed
     @Transactional(readOnly = true)
     public List<WorkerResponse> listWorkers() {
-        return workerRepository.findAll().stream()
+        return workerRepository.findAllOrderedByRegisteredAt().stream()
                 .map(this::mapToResponse)
                 .toList();
     }
