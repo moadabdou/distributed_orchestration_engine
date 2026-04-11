@@ -1,0 +1,42 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Maven
+**/target/
+!.mvn/
+*.class
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+
+# Tests directory
+automated_tests/
+
+# Documentation & Plan
+plan/
+README.md
+assets/
+
+# Docker (exclude docker-compose so it's available to Compose)
+Dockerfile*
+.dockerignore
+
+# Qwen
+.qwen/

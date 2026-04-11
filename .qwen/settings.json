@@ -3,7 +3,17 @@
     "allow": [
       "Bash(mvn *)",
       "Bash(npm run *)",
-      "Bash(mkdir *)"
+      "Bash(mkdir *)",
+      "Bash(rm *)",
+      "Bash(test *)",
+      "Bash(docker logs *)",
+      "Bash(head *)",
+      "Bash(docker ps *)",
+      "Bash(docker inspect *)",
+      "Bash(tr *)",
+      "Bash(docker run *)",
+      "Bash(sleep *)",
+      "Bash(docker rm *)"
     ]
   },
   "$version": 3
