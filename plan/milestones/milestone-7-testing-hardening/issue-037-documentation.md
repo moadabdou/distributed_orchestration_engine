@@ -13,6 +13,46 @@ Write comprehensive project documentation including an architecture diagram, qui
 
 ```
 # Distributed Job Orchestration Platform
+## Description
+
+Write comprehensive project documentation including an architecture diagram, quickstart guide, API reference, and contribution guidelines.
+
+### README Structure
+
+```
+# Distributed Job Orchestration Platform
+
+## Architecture Overview
+[Mermaid diagram of all components]
+
+## Quickstart
+### Prerequisites
+### Running with Docker Compose
+### Running Locally (Development)
+
+## API Reference
+### POST /api/v1/jobs
+### GET /api/v1/jobs
+### GET /api/v1/workers
+
+## Configuration
+### Environment Variables
+### application.yml Reference
+
+## Testing
+### Unit Tests
+### Integration Tests
+### Chaos Tests
+
+## Project Structure
+[Directory tree explanation]
+
+## Contributing
+[Guidelines]
+
+## License
+```
+
 
 ## Architecture Overview
 [Mermaid diagram of all components]

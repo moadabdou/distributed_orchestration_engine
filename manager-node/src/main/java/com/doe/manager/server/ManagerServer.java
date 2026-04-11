@@ -178,7 +178,6 @@ public class ManagerServer implements SmartLifecycle {
                     case REGISTER_WORKER -> {
                         localConnection = handleRegistration(message, socket);
                         workerId = localConnection.getId();
-                        MDC.put("workerId", workerId.toString());
                     }
                     case HEARTBEAT -> {
                         if (workerId != null) {
@@ -277,7 +276,10 @@ public class ManagerServer implements SmartLifecycle {
 
         WorkerConnection connection = new WorkerConnection(workerId, socket, defaultWorkerMaxCapacity);
 
-        LOG.info("Worker {} connected from {} (hostname: {})", workerId, connection.getRemoteAddress(), hostname);
+        // Set MDC for all subsequent log statements in this handler thread
+        MDC.put("workerId", workerId.toString());
+
+        LOG.info("Worker connected from {} (hostname: {})", connection.getRemoteAddress(), hostname);
 
         Optional<WorkerConnection> prevOpt = registry.get(workerId);
         if (prevOpt.isPresent()) {

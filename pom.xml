@@ -31,6 +31,7 @@
         <gson.version>2.11.0</gson.version>
         <slf4j.version>2.0.13</slf4j.version>
         <logback.version>1.5.6</logback.version>
+        <logstash-encoder.version>8.0</logstash-encoder.version>
         <junit.version>5.10.3</junit.version>
         <spring-boot.version>3.3.4</spring-boot.version>
     </properties>
@@ -55,6 +56,11 @@
                 <groupId>ch.qos.logback</groupId>
                 <artifactId>logback-classic</artifactId>
                 <version>${logback.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash-encoder.version}</version>
             </dependency>
 
             <!-- Testing -->
@@ -95,6 +101,10 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

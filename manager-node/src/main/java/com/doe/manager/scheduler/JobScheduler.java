@@ -12,6 +12,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -134,50 +135,55 @@ public class JobScheduler {
      * </ul>
      */
     private void assignJob(Job job, WorkerConnection worker) {
-        // Advance job state machine: PENDING → ASSIGNED
-        job.transition(JobStatus.ASSIGNED);
-        job.setAssignedWorkerId(worker.getId());
-
-        LOG.info("Assigning job {} to worker {} | queue size remaining: {}",
-                job.getId(), worker.getId(), queue.size());
-
+        MDC.put("jobId", job.getId().toString());
         try {
-            // Record the reverse mapping: worker → job (for JOB_RESULT correlation)
-            // MUST happen before sending to avoid race conditions with fast workers
+            // Advance job state machine: PENDING → ASSIGNED
+            job.transition(JobStatus.ASSIGNED);
+            job.setAssignedWorkerId(worker.getId());
 
-            // Notify DB that the worker is now handling another job and the job has been ASSIGNED
-            // MUST happen before sending to avoid out-of-order COMPLETED → ASSIGNED transitions
-            eventListener.onJobAssigned(job.getId(), worker.getId(), job.getUpdatedAt());
+            LOG.info("Assigning job to worker {} | queue size remaining: {}",
+                    worker.getId(), queue.size());
 
-            // Build the ASSIGN_JOB envelope: { "jobId": "...", "payload": <original payload> }
-            // so the worker can echo jobId back in JOB_RUNNING and JOB_RESULT.
-            JsonObject envelope = new JsonObject();
-            envelope.addProperty("jobId", job.getId().toString());
-            envelope.addProperty("timeoutMs", job.getTimeoutMs());
-            // Embed the original payload as a nested JSON element (not a double-encoded string)
-            envelope.add("payload", JsonParser.parseString(job.getPayload()));
+            try {
+                // Record the reverse mapping: worker → job (for JOB_RESULT correlation)
+                // MUST happen before sending to avoid race conditions with fast workers
 
-            byte[] wire = ProtocolEncoder.encode(MessageType.ASSIGN_JOB, GSON.toJson(envelope));
-            OutputStream out = worker.getSocket().getOutputStream();
-            synchronized (out) {          // guard concurrent writes on the same socket
-                out.write(wire);
-                out.flush();
+                // Notify DB that the worker is now handling another job and the job has been ASSIGNED
+                // MUST happen before sending to avoid out-of-order COMPLETED → ASSIGNED transitions
+                eventListener.onJobAssigned(job.getId(), worker.getId(), job.getUpdatedAt());
+
+                // Build the ASSIGN_JOB envelope: { "jobId": "...", "payload": <original payload> }
+                // so the worker can echo jobId back in JOB_RUNNING and JOB_RESULT.
+                JsonObject envelope = new JsonObject();
+                envelope.addProperty("jobId", job.getId().toString());
+                envelope.addProperty("timeoutMs", job.getTimeoutMs());
+                // Embed the original payload as a nested JSON element (not a double-encoded string)
+                envelope.add("payload", JsonParser.parseString(job.getPayload()));
+
+                byte[] wire = ProtocolEncoder.encode(MessageType.ASSIGN_JOB, GSON.toJson(envelope));
+                OutputStream out = worker.getSocket().getOutputStream();
+                synchronized (out) {          // guard concurrent writes on the same socket
+                    out.write(wire);
+                    out.flush();
+                }
+
+            } catch (IOException e) {
+                LOG.error("Failed to send ASSIGN_JOB to worker {}. Rolling back job to PENDING.",
+                        worker.getId(), e);
+                // Roll back job state: ASSIGNED → PENDING (valid transition)
+                job.transition(JobStatus.PENDING);
+                job.setAssignedWorkerId(null);
+
+                // Notify DB about the rollback
+                eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
+
+                // releaseCapacity() frees slot and re-offers worker if available
+                registry.releaseCapacity(worker.getId(), job.getId());
+                // Re-insert at the head of the queue so it is retried promptly
+                queue.requeue(job);
             }
-
-        } catch (IOException e) {
-            LOG.error("Failed to send ASSIGN_JOB to worker {}. Rolling back job {} to PENDING.",
-                    worker.getId(), job.getId(), e);
-            // Roll back job state: ASSIGNED → PENDING (valid transition)
-            job.transition(JobStatus.PENDING);
-            job.setAssignedWorkerId(null);
-            
-            // Notify DB about the rollback
-            eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
-            
-            // releaseCapacity() frees slot and re-offers worker if available
-            registry.releaseCapacity(worker.getId(), job.getId());
-            // Re-insert at the head of the queue so it is retried promptly
-            queue.requeue(job);
+        } finally {
+            MDC.remove("jobId");
         }
     }
 

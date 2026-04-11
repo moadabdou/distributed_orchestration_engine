@@ -30,7 +30,7 @@ const WorkerNodesPanel: React.FC = () => {
           <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
         </div>
       ) : isError ? (
-        <div className="flex-1 flex items-center justify-center text-red-400 p-4 border border-red-200 bg-red-50/50 rounded-xl">
+        <div className="flex-1 flex items-center justify-center text-red-500 font-medium p-4">
           Failed to load workers
         </div>
       ) : workers?.length === 0 ? (

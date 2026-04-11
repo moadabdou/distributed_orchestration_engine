@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Spring profile support: default=production, dev=human-readable -->
+    <springProfile name="dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - [requestId=%X{requestId},workerId=%X{workerId},jobId=%X{jobId}] %msg%n</pattern>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <springProfile name="!dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>requestId</includeMdcKeyName>
+                <includeMdcKeyName>workerId</includeMdcKeyName>
+                <includeMdcKeyName>jobId</includeMdcKeyName>
+                <customFields>{"application":"manager-node"}</customFields>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- Default log levels — overridden by application.yml logging.level -->
+    <logger name="com.doe" level="${LOGGING_LEVEL_COM_DOE:-INFO}" />
+    <logger name="org.springframework.web" level="${LOGGING_LEVEL_SPRING_WEB:-INFO}" />
+    <logger name="org.hibernate.SQL" level="${LOGGING_LEVEL_HIBERNATE_SQL:-WARN}" />
+
+    <root level="${LOGGING_LEVEL_ROOT:-INFO}">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+</configuration>

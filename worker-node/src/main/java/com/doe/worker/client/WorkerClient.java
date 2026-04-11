@@ -15,6 +15,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -226,6 +227,7 @@ public class WorkerClient {
             }
 
             UUID workerId = UUID.fromString(ackJson.get("workerId").getAsString());
+            MDC.put("workerId", workerId.toString());
             LOG.info("Registered with manager, assigned worker ID: {}", workerId);
 
             Thread.ofVirtual().name("heartbeat-" + workerId).start(() -> runHeartbeatLoop(s, egressQueue, workerId));
@@ -239,6 +241,7 @@ public class WorkerClient {
             }
             // to avoid calling close() twice by shutdown if socket was already closed by try-with-resources
             socket = null;
+            MDC.clear();
         }
     }
 

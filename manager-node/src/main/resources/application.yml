@@ -37,3 +37,24 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+
+# ─── Logging Configuration ──────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.doe: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+logging:
+  level:
+    root: INFO
+    com.doe: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN

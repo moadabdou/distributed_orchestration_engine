@@ -12,6 +12,6 @@ public class Main {
 
     public static void main(String[] args) {
         LOG.info("Module: engine-core");
-        System.out.println("engine-core module loaded.");
+        LOG.info("engine-core module loaded.");
     }
 }
