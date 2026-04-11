@@ -33,10 +33,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    tags:
+      application: fern-os
 
 # ─── Logging Configuration ──────────────────────────────────────────
 logging:

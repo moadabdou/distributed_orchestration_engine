@@ -5,6 +5,7 @@ import com.doe.core.model.JobStatus;
 import com.doe.manager.api.dto.JobRequest;
 import com.doe.manager.api.dto.JobResponse;
 import com.doe.manager.api.exception.ResourceNotFoundException;
+import com.doe.manager.metrics.MetricsService;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.repository.JobRepository;
 import com.doe.manager.scheduler.JobQueue;
@@ -24,11 +25,13 @@ public class JobService {
     private final JobRepository jobRepository;
     private final JobQueue jobQueue;
     private final ManagerServer managerServer;
+    private final MetricsService metricsService;
 
-    public JobService(JobRepository jobRepository, JobQueue jobQueue, ManagerServer managerServer) {
+    public JobService(JobRepository jobRepository, JobQueue jobQueue, ManagerServer managerServer, MetricsService metricsService) {
         this.jobRepository = jobRepository;
         this.jobQueue = jobQueue;
         this.managerServer = managerServer;
+        this.metricsService = metricsService;
     }
 
     @Transactional
@@ -50,6 +53,7 @@ public class JobService {
 
         jobRepository.save(entity);
         jobQueue.enqueue(job);
+        metricsService.incrementJobsSubmitted();
 
         return mapToResponse(entity);
     }
