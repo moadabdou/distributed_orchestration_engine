@@ -19,7 +19,9 @@
       "Bash(docker images)",
       "Bash(docker compose config)",
       "Bash(docker compose up *)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(chmod *)",
+      "Bash(npm audit)"
     ]
   },
   "$version": 3

@@ -3,6 +3,9 @@
 .gitignore
 .gitattributes
 
+# Node modules
+**/node_modules/
+
 # Maven
 **/target/
 !.mvn/

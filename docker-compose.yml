@@ -62,6 +62,21 @@ services:
     networks:
       - fernos-net
 
+  # ── React Dashboard (Nginx) ─────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    container_name: fernos-dashboard
+    restart: unless-stopped
+    depends_on:
+      manager:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - fernos-net
+
 volumes:
   fernos-data:
 
