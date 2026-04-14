@@ -24,7 +24,7 @@ Located in: `manager-node/src/main/java/com/doe/manager/workflow/WorkflowManager
 
 ### Thread Safety
 - Use `ConcurrentHashMap<UUID, Workflow>` for storage
-- Synchronize state mutations with `ReentrantReadWriteLock` or `synchronized` blocks
+- Synchronize state mutations with `ReentrantReadWriteLock`
 - Prevent race conditions between API calls, scheduler thread, and listener callbacks
 
 ### Lifecycle State Machine
@@ -68,3 +68,45 @@ manager-node/
 ## Notes
 - No persistence yet — workflows lost on restart (acceptable for Phase 1)
 - Legacy compatibility: existing `JobScheduler` (FIFO) can coexist; `DagScheduler` will wrap it later
+
+## Execution Strategy — Latch-Based DAG Execution
+
+### Latch Counter Design (for Issue 038.3 — DagScheduler)
+When the DagScheduler is implemented, it will use a **latch-based approach** to determine job readiness:
+
+**Mechanism:**
+1. Each `WorkflowJob` gets a latch counter = number of dependencies (in-degree)
+2. When a dependency completes, decrement the latch of all its dependents
+3. When latch reaches 0 → job is eligible → submit to `JobQueue`
+4. Initial seed: enqueue all root jobs (latch == 0) when workflow starts
+
+**Data Structures (in DagScheduler):**
+```java
+Map<UUID, AtomicInteger> latchCounters;       // jobId → remaining deps
+Map<UUID, List<UUID>> dependents;             // jobId → list of jobs that depend on it
+```
+
+**Why this works for the current architecture:**
+- The existing `JobScheduler` uses a **single central queue** consumed by **one virtual thread**
+- Latch-based execution naturally feeds into this single queue — no work-stealing or per-worker queues needed yet
+- Atomic operations (`AtomicInteger.decrementAndGet()`) ensure thread-safety across the scheduler thread, API threads, and callback threads
+- This pattern scales to thousands of nodes and is used by PyTorch's autograd engine, Flink, and Ray
+
+**Scalability notes for future optimization:**
+- Current single-queue architecture is sufficient for Phase 1
+- Future milestones can upgrade to per-worker queues + work-stealing if queue contention becomes a bottleneck
+- The latch primitive remains the same regardless of queue architecture — only the dispatch mechanism changes
+
+**Execution flow (DagScheduler):**
+```
+onWorkflowExecute(workflowId):
+    compute in-degree for each job
+    latch[jobId] = inDegree(jobId)
+    for each job with latch == 0:
+        jobQueue.enqueue(job)
+
+onJobCompleted(jobId):
+    for each dependent in dependents[jobId]:
+        if latch[dependent].decrementAndGet() == 0:
+            jobQueue.enqueue(dependent)
+```

@@ -75,6 +75,23 @@ public final class Workflow {
         return jobs.size();
     }
 
+    /**
+     * Returns a new {@link Workflow} instance with the given status,
+     * preserving all other fields.
+     *
+     * @param newStatus the new status for this workflow
+     * @return a new workflow with the specified status
+     */
+    public Workflow withStatus(WorkflowStatus newStatus) {
+        return new Builder()
+                .id(this.id)
+                .name(this.name)
+                .status(newStatus)
+                .addJobs(this.jobs.values())
+                .createdAt(this.createdAt)
+                .build();
+    }
+
     @Override
     public String toString() {
         return "Workflow{id=%s, name='%s', status=%s, jobs=%d, createdAt=%s}"
