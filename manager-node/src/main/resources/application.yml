@@ -42,6 +42,13 @@ management:
       application: fern-os
 
 # ─── Logging Configuration ──────────────────────────────────────────
+# ─── DAG Workflow Scheduler ───────────────────────────────────────────
+doe:
+  workflow:
+    scheduler-interval-ms: 1000     # how often DagScheduler polls for ready jobs
+    fail-fast: true                 # if one job fails, fail the whole workflow immediately
+    max-concurrent-jobs-per-workflow: 10  # limit parallelism per workflow
+
 logging:
   level:
     root: INFO
