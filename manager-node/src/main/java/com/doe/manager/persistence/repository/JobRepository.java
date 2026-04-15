@@ -69,4 +69,9 @@ public interface JobRepository extends JpaRepository<JobEntity, UUID> {
      * @return list of matching jobs
      */
     List<JobEntity> findByWorkflowId(UUID workflowId);
+
+    /**
+     * Counts all jobs associated with a given workflow ID.
+     */
+    int countByWorkflowId(UUID workflowId);
 }

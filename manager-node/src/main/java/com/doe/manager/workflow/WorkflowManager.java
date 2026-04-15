@@ -67,6 +67,7 @@ public class WorkflowManager {
 
         if (workflow.getStatus() != WorkflowStatus.DRAFT) {
             throw new WorkflowException(
+                    WorkflowErrorCode.INVALID_WORKFLOW_STATE,
                     "Workflow can only be registered in DRAFT status, but was: " + workflow.getStatus());
         }
 
@@ -76,7 +77,11 @@ public class WorkflowManager {
             String errorDetails = errors.stream()
                     .map(e -> "%s: %s".formatted(e.type(), e.message()))
                     .collect(Collectors.joining("; "));
-            throw new WorkflowException("DAG validation failed: " + errorDetails);
+            // Distinguish cycle vs missing-dependency
+            boolean hasCycle = errors.stream()
+                    .anyMatch(e -> e.type().name().contains("CYCLE"));
+            WorkflowErrorCode code = hasCycle ? WorkflowErrorCode.DAG_HAS_CYCLE : WorkflowErrorCode.MISSING_DEPENDENCY;
+            throw new WorkflowException(code, "DAG validation failed: " + errorDetails);
         }
 
         // Enforce DRAFT status on registration
@@ -120,6 +125,7 @@ public class WorkflowManager {
             // Cannot delete RUNNING workflows
             if (workflow.getStatus() == WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_RUNNING,
                         "Cannot delete a workflow while it is RUNNING. Pause it first.");
             }
 
@@ -170,14 +176,17 @@ public class WorkflowManager {
             // Editing is only allowed in DRAFT or PAUSED state
             if (existing.getStatus() == WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_NOT_EDITABLE,
                         "Cannot edit a workflow while it is RUNNING. Pause it first.");
             }
             if (existing.getStatus() == WorkflowStatus.COMPLETED) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_NOT_EDITABLE,
                         "Cannot edit a workflow that is COMPLETED. Reset it to DRAFT first.");
             }
             if (existing.getStatus() == WorkflowStatus.FAILED) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_NOT_EDITABLE,
                         "Cannot edit a workflow that is FAILED. Reset it to DRAFT first.");
             }
 
@@ -187,7 +196,10 @@ public class WorkflowManager {
                 String errorDetails = errors.stream()
                         .map(e -> "%s: %s".formatted(e.type(), e.message()))
                         .collect(Collectors.joining("; "));
-                throw new WorkflowException("DAG validation failed: " + errorDetails);
+                boolean hasCycle = errors.stream()
+                        .anyMatch(e -> e.type().name().contains("CYCLE"));
+                WorkflowErrorCode code = hasCycle ? WorkflowErrorCode.DAG_HAS_CYCLE : WorkflowErrorCode.MISSING_DEPENDENCY;
+                throw new WorkflowException(code, "DAG validation failed: " + errorDetails);
             }
 
             // Validate that job statuses are consistent with DAG dependency order
@@ -220,8 +232,14 @@ public class WorkflowManager {
         try {
             Workflow workflow = getWorkflowLocked(workflowId);
 
+            if (workflow.getStatus() == WorkflowStatus.RUNNING) {
+                throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_ALREADY_RUNNING,
+                        "Workflow %s is already RUNNING".formatted(workflowId));
+            }
             if (workflow.getStatus() != WorkflowStatus.DRAFT) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_NOT_DRAFT,
                         "Can only execute workflows in DRAFT status, but workflow %s is %s"
                                 .formatted(workflowId, workflow.getStatus()));
             }
@@ -254,6 +272,7 @@ public class WorkflowManager {
 
             if (workflow.getStatus() != WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.INVALID_WORKFLOW_STATE,
                         "Can only pause workflows in RUNNING status, but workflow %s is %s"
                                 .formatted(workflowId, workflow.getStatus()));
             }
@@ -286,6 +305,7 @@ public class WorkflowManager {
 
             if (workflow.getStatus() != WorkflowStatus.PAUSED) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_NOT_PAUSED,
                         "Can only resume workflows in PAUSED status, but workflow %s is %s"
                                 .formatted(workflowId, workflow.getStatus()));
             }
@@ -321,6 +341,7 @@ public class WorkflowManager {
 
             if (workflow.getStatus() == WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
+                        WorkflowErrorCode.WORKFLOW_RUNNING,
                         "Cannot reset a workflow while it is RUNNING. Pause it first.");
             }
 
@@ -538,7 +559,9 @@ public class WorkflowManager {
     private Workflow getWorkflowLocked(UUID workflowId) {
         Workflow workflow = store.get(workflowId);
         if (workflow == null) {
-            throw new WorkflowException("Workflow not found: " + workflowId);
+            throw new WorkflowException(
+                    WorkflowErrorCode.WORKFLOW_NOT_FOUND,
+                    "Workflow not found: " + workflowId);
         }
         return workflow;
     }
