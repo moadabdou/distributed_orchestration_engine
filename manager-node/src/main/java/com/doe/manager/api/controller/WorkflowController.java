@@ -44,14 +44,14 @@ public class WorkflowController {
 
     /** GET /workflows/{id} — Get workflow detail */
     @GetMapping("/{id}")
-    public WorkflowResponse getWorkflow(@PathVariable UUID id) {
+    public WorkflowResponse getWorkflow(@PathVariable("id") UUID id) {
         return workflowService.getWorkflow(id);
     }
 
     /** PUT /workflows/{id} — Replace workflow definition */
     @PutMapping("/{id}")
     public WorkflowResponse updateWorkflow(
-            @PathVariable UUID id,
+            @PathVariable("id") UUID id,
             @RequestBody UpdateWorkflowRequest request) {
         return workflowService.updateWorkflow(id, request);
     }
@@ -59,7 +59,7 @@ public class WorkflowController {
     /** DELETE /workflows/{id} — Delete workflow */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteWorkflow(@PathVariable UUID id) {
+    public void deleteWorkflow(@PathVariable("id") UUID id) {
         workflowService.deleteWorkflow(id);
     }
 
@@ -67,25 +67,25 @@ public class WorkflowController {
 
     /** POST /workflows/{id}/execute — Start execution (DRAFT → RUNNING) */
     @PostMapping("/{id}/execute")
-    public WorkflowResponse executeWorkflow(@PathVariable UUID id) {
+    public WorkflowResponse executeWorkflow(@PathVariable("id") UUID id) {
         return workflowService.executeWorkflow(id);
     }
 
     /** POST /workflows/{id}/pause — Pause execution (RUNNING → PAUSED) */
     @PostMapping("/{id}/pause")
-    public WorkflowResponse pauseWorkflow(@PathVariable UUID id) {
+    public WorkflowResponse pauseWorkflow(@PathVariable("id") UUID id) {
         return workflowService.pauseWorkflow(id);
     }
 
     /** POST /workflows/{id}/resume — Resume execution (PAUSED → RUNNING) */
     @PostMapping("/{id}/resume")
-    public WorkflowResponse resumeWorkflow(@PathVariable UUID id) {
+    public WorkflowResponse resumeWorkflow(@PathVariable("id") UUID id) {
         return workflowService.resumeWorkflow(id);
     }
 
     /** POST /workflows/{id}/reset — Reset to DRAFT */
     @PostMapping("/{id}/reset")
-    public WorkflowResponse resetWorkflow(@PathVariable UUID id) {
+    public WorkflowResponse resetWorkflow(@PathVariable("id") UUID id) {
         return workflowService.resetWorkflow(id);
     }
 
@@ -93,7 +93,7 @@ public class WorkflowController {
 
     /** GET /workflows/{id}/dag — Full DAG (nodes + edges) */
     @GetMapping("/{id}/dag")
-    public DagGraphResponse getDag(@PathVariable UUID id) {
+    public DagGraphResponse getDag(@PathVariable("id") UUID id) {
         return workflowService.getDag(id);
     }
 }
