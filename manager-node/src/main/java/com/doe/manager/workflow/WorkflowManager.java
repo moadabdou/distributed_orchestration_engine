@@ -228,9 +228,12 @@ public class WorkflowManager {
     public Workflow executeWorkflow(UUID workflowId) {
         Objects.requireNonNull(workflowId, "workflowId must not be null");
 
+        LOG.info(String.format("executeWorkflow called for workflowId=%s", workflowId));
+
         lock.writeLock().lock();
         try {
             Workflow workflow = getWorkflowLocked(workflowId);
+            LOG.info(String.format("executeWorkflow: Current status of workflow %s is %s", workflowId, workflow.getStatus()));
 
             if (workflow.getStatus() == WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
@@ -244,9 +247,11 @@ public class WorkflowManager {
                                 .formatted(workflowId, workflow.getStatus()));
             }
 
+            LOG.info(String.format("executeWorkflow: Changing workflow %s status to RUNNING", workflowId));
             Workflow runningWorkflow = workflow.withStatus(WorkflowStatus.RUNNING);
             store.put(workflowId, runningWorkflow);
             listeners.forEach(l -> l.onWorkflowExecuted(runningWorkflow));
+            LOG.info(String.format("executeWorkflow: Workflow %s successfully executed", workflowId));
             return runningWorkflow;
         } finally {
             lock.writeLock().unlock();
@@ -266,9 +271,12 @@ public class WorkflowManager {
     public Workflow pauseWorkflow(UUID workflowId) {
         Objects.requireNonNull(workflowId, "workflowId must not be null");
 
+        LOG.info(String.format("pauseWorkflow called for workflowId=%s", workflowId));
+
         lock.writeLock().lock();
         try {
             Workflow workflow = getWorkflowLocked(workflowId);
+            LOG.info(String.format("pauseWorkflow: Current status of workflow %s is %s", workflowId, workflow.getStatus()));
 
             if (workflow.getStatus() != WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
@@ -277,9 +285,11 @@ public class WorkflowManager {
                                 .formatted(workflowId, workflow.getStatus()));
             }
 
+            LOG.info(String.format("pauseWorkflow: Changing workflow %s status to PAUSED", workflowId));
             Workflow pausedWorkflow = workflow.withStatus(WorkflowStatus.PAUSED);
             store.put(workflowId, pausedWorkflow);
             listeners.forEach(l -> l.onWorkflowPaused(pausedWorkflow));
+            LOG.info(String.format("pauseWorkflow: Workflow %s successfully paused", workflowId));
             return pausedWorkflow;
         } finally {
             lock.writeLock().unlock();
@@ -335,9 +345,12 @@ public class WorkflowManager {
     public Workflow resetWorkflow(UUID workflowId) {
         Objects.requireNonNull(workflowId, "workflowId must not be null");
 
+        LOG.info(String.format("resetWorkflow called for workflowId=%s", workflowId));
+
         lock.writeLock().lock();
         try {
             Workflow workflow = getWorkflowLocked(workflowId);
+            LOG.info(String.format("resetWorkflow: Current status of workflow %s is %s", workflowId, workflow.getStatus()));
 
             if (workflow.getStatus() == WorkflowStatus.RUNNING) {
                 throw new WorkflowException(
@@ -346,17 +359,21 @@ public class WorkflowManager {
             }
 
             if (workflow.getStatus() == WorkflowStatus.DRAFT) {
+                LOG.info(String.format("resetWorkflow: Workflow %s is already DRAFT. Just resetting job statuses.", workflowId));
                 // Already in DRAFT — nothing to reset, but still reset job statuses
                 Workflow resetWorkflow = resetJobStatuses(workflow);
                 store.put(workflowId, resetWorkflow);
                 listeners.forEach(l -> l.onWorkflowReset(resetWorkflow));
+                LOG.info(String.format("resetWorkflow: Workflow %s reset successfully (was already DRAFT)", workflowId));
                 return resetWorkflow;
             }
 
+            LOG.info(String.format("resetWorkflow: Restoring workflow %s to DRAFT and resetting job statuses", workflowId));
             // Transition to DRAFT and reset all job statuses to PENDING
             final Workflow finalResetWorkflow = resetJobStatuses(workflow.withStatus(WorkflowStatus.DRAFT));
             store.put(workflowId, finalResetWorkflow);
             listeners.forEach(l -> l.onWorkflowReset(finalResetWorkflow));
+            LOG.info(String.format("resetWorkflow: Workflow %s successfully restored to DRAFT", workflowId));
             return finalResetWorkflow;
         } finally {
             lock.writeLock().unlock();
@@ -580,9 +597,11 @@ public class WorkflowManager {
      * Returns a new workflow instance with all job statuses reset to PENDING.
      */
     private Workflow resetJobStatuses(Workflow workflow) {
+        LOG.info(String.format("resetJobStatuses: Starting job reset for workflow %s", workflow.getId()));
         List<WorkflowJob> resetJobs = workflow.getJobs().stream()
                 .map(wj -> {
                     Job job = wj.getJob();
+                    LOG.info(String.format("resetJobStatuses: Resetting job %s (current status=%s) to PENDING", job.getId(), job.getStatus()));
                     Job resetJob = Job.newJob(job.getPayload())
                             .id(job.getId())
                             .status(JobStatus.PENDING)
@@ -597,6 +616,7 @@ public class WorkflowManager {
                 })
                 .collect(Collectors.toList());
 
+        LOG.info(String.format("resetJobStatuses: Creating new workflow instance %s", workflow.getId()));
         return Workflow.newWorkflow(workflow.getName())
                 .id(workflow.getId())
                 .status(workflow.getStatus())

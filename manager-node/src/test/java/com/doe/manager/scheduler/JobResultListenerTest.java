@@ -1,5 +1,6 @@
 package com.doe.manager.scheduler;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
@@ -40,7 +41,7 @@ class JobResultListenerTest {
     void setUp() {
         workflowManager = new WorkflowManager();
         jobQueue = new JobQueue(null, 1000);
-        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10);
+        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10, noOpListener());
         listener = new JobResultListener(workflowManager, dagScheduler);
         dagScheduler.start();
     }
@@ -364,5 +365,19 @@ class JobResultListenerTest {
         simulateJobComplete(dequeuedC, workflow.getId());
         assertEquals(1, jobQueue.size());
         assertEquals(d, jobQueue.dequeue().getId());
+    }
+    /** Returns a no-op EngineEventListener suitable for unit tests that don't need persistence. */
+    private static EngineEventListener noOpListener() {
+        return new EngineEventListener() {
+            public void onWorkerRegistered(java.util.UUID w, String h, String ip, int cap, java.time.Instant t) {}
+            public void onWorkerHeartbeat(java.util.UUID w, java.time.Instant t) {}
+            public void onWorkerDied(java.util.UUID w) {}
+            public void onJobAssigned(java.util.UUID j, java.util.UUID w, java.time.Instant t) {}
+            public void onJobRunning(java.util.UUID j, java.time.Instant t) {}
+            public void onJobCompleted(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobFailed(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobCancelled(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobRequeued(java.util.UUID j, int rc, java.time.Instant t) {}
+        };
     }
 }

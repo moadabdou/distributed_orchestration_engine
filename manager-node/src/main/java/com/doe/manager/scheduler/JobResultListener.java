@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * safety guarantees.
  */
 @Component
-public class JobResultListener implements EngineEventListener {
+public class JobResultListener implements EngineEventListener, com.doe.manager.workflow.WorkflowEventListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(JobResultListener.class);
 
@@ -48,9 +48,12 @@ public class JobResultListener implements EngineEventListener {
     /** Reverse index: jobId → workflowId. Built lazily on first encounter. */
     private final Map<UUID, UUID> jobToWorkflow = new ConcurrentHashMap<>();
 
-    public JobResultListener(WorkflowManager workflowManager, DagScheduler dagScheduler) {
+    public JobResultListener(WorkflowManager workflowManager, @org.springframework.context.annotation.Lazy DagScheduler dagScheduler) {
         this.workflowManager = workflowManager;
         this.dagScheduler = dagScheduler;
+
+        // Register to clean up on workflow reset/delete
+        this.workflowManager.addListener(this);
     }
 
     // ──── EngineEventListener implementation ─────────────────────────────────
@@ -167,6 +170,48 @@ public class JobResultListener implements EngineEventListener {
      */
     public void forgetWorkflow(UUID workflowId) {
         jobToWorkflow.entrySet().removeIf(e -> workflowId.equals(e.getValue()));
+    }
+
+    // ──── WorkflowEventListener implementation ───────────────────────────────
+
+    @Override
+    public void onWorkflowRegistered(com.doe.core.model.Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowDeleted(UUID workflowId) {
+        forgetWorkflow(workflowId);
+    }
+
+    @Override
+    public void onWorkflowUpdated(com.doe.core.model.Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowExecuted(com.doe.core.model.Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowPaused(com.doe.core.model.Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowResumed(com.doe.core.model.Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowReset(com.doe.core.model.Workflow workflow) {
+        forgetWorkflow(workflow.getId());
+    }
+
+    @Override
+    public void onWorkflowStatusChanged(com.doe.core.model.Workflow workflow) {
+        // No-op
     }
 
     /**

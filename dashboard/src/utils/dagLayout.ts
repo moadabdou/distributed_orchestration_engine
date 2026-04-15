@@ -8,20 +8,27 @@ export const applyDagLayout = (graph: DagGraph): DagNode[] => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   
-  // Set layout direction top-to-bottom
+  // Set layout direction left-to-right
   dagreGraph.setGraph({ 
-    rankdir: 'TB',
-    nodesep: 50, // Spacing between nodes in same layer
-    ranksep: 80, // Spacing between layers
+    rankdir: 'LR',
+    nodesep: 60, // Spacing between nodes in same layer
+    ranksep: 100, // Spacing between layers
   });
 
-  // Add nodes
-  graph.nodes.forEach((node) => {
+  const sortedNodes = [...graph.nodes].sort((a, b) => a.jobId.localeCompare(b.jobId));
+  const sortedEdges = [...graph.edges].sort((a, b) =>
+    a.sourceJobId === b.sourceJobId
+      ? a.targetJobId.localeCompare(b.targetJobId)
+      : a.sourceJobId.localeCompare(b.sourceJobId)
+  );
+
+  // Add nodes deterministically
+  sortedNodes.forEach((node) => {
     dagreGraph.setNode(node.jobId, { width: NODE_WIDTH, height: NODE_HEIGHT });
   });
 
-  // Add edges
-  graph.edges.forEach((edge) => {
+  // Add edges deterministically
+  sortedEdges.forEach((edge) => {
     dagreGraph.setEdge(edge.sourceJobId, edge.targetJobId);
   });
 

@@ -1,5 +1,6 @@
 package com.doe.manager.scheduler;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
@@ -43,7 +44,7 @@ class DagSchedulerTest {
         // Capacity large enough for all test jobs
         jobQueue = new JobQueue(null, 1000);
         // Use a very long interval so the scheduler doesn't run automatically during tests
-        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10);
+        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10, noOpListener());
         dagScheduler.start();
     }
 
@@ -437,7 +438,7 @@ class DagSchedulerTest {
     void maxConcurrentJobs_respectsLimit() {
         // Use a scheduler with maxConcurrentJobs=2
         dagScheduler.stop();
-        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, false, 2);
+        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, false, 2, noOpListener());
         dagScheduler.start();
 
         // Workflow: A → B, C, D (fan-out to 3, but limit is 2)
@@ -531,5 +532,20 @@ class DagSchedulerTest {
         // Forget and re-tick — should not throw
         dagScheduler.forgetWorkflow(workflow.getId());
         assertDoesNotThrow(() -> dagScheduler.forgetWorkflow(workflow.getId()));
+    }
+
+    /** Returns a no-op EngineEventListener suitable for unit tests that don't need persistence. */
+    private static EngineEventListener noOpListener() {
+        return new EngineEventListener() {
+            public void onWorkerRegistered(java.util.UUID w, String h, String ip, int cap, java.time.Instant t) {}
+            public void onWorkerHeartbeat(java.util.UUID w, java.time.Instant t) {}
+            public void onWorkerDied(java.util.UUID w) {}
+            public void onJobAssigned(java.util.UUID j, java.util.UUID w, java.time.Instant t) {}
+            public void onJobRunning(java.util.UUID j, java.time.Instant t) {}
+            public void onJobCompleted(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobFailed(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobCancelled(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobRequeued(java.util.UUID j, int rc, java.time.Instant t) {}
+        };
     }
 }

@@ -11,6 +11,7 @@ import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.registry.WorkerRegistry;
 import com.doe.core.registry.JobRegistry;
 import com.doe.core.registry.WorkerDeathListener;
+import com.doe.manager.scheduler.DagScheduler;
 import com.doe.manager.scheduler.JobScheduler;
 import com.doe.manager.scheduler.JobTimeoutMonitor;
 import com.google.gson.Gson;
@@ -64,6 +65,7 @@ public class ManagerServer implements SmartLifecycle {
     private final JobRegistry jobRegistry;
     private final long heartbeatCheckIntervalMs;
     private final long heartbeatTimeoutMs;
+    private final DagScheduler dagScheduler;
     private final JobScheduler jobScheduler;
     private final JobTimeoutMonitor jobTimeoutMonitor;
     private final EngineEventListener eventListener;
@@ -86,6 +88,7 @@ public class ManagerServer implements SmartLifecycle {
             @Value("${manager.worker.default-max-capacity:4}") int defaultWorkerMaxCapacity,
             WorkerRegistry registry,
             JobRegistry jobRegistry,
+            DagScheduler dagScheduler,
             JobScheduler jobScheduler,
             JobTimeoutMonitor jobTimeoutMonitor,
             EngineEventListener eventListener,
@@ -103,6 +106,7 @@ public class ManagerServer implements SmartLifecycle {
         this.heartbeatTimeoutMs = heartbeatTimeoutMs;
         this.registry = registry;
         this.jobRegistry = jobRegistry;
+        this.dagScheduler = dagScheduler;
         this.jobScheduler = jobScheduler;
         this.jobTimeoutMonitor = jobTimeoutMonitor;
         this.eventListener = eventListener;
@@ -130,6 +134,7 @@ public class ManagerServer implements SmartLifecycle {
             startHeartbeatMonitor();
             jobTimeoutMonitor.start();
             jobScheduler.start();
+            dagScheduler.start();
             
             Thread.ofVirtual().name("manager-acceptor").start(this::acceptLoop);
         } catch (IOException e) {
@@ -491,6 +496,7 @@ public class ManagerServer implements SmartLifecycle {
 
         jobTimeoutMonitor.stop();
         jobScheduler.stop();
+        dagScheduler.stop();
 
         if (monitorExecutor != null && !monitorExecutor.isShutdown()) {
             monitorExecutor.shutdownNow();

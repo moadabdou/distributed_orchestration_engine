@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../components/ToastProvider';
 import {
   executeWorkflow,
   pauseWorkflow,
@@ -9,36 +10,51 @@ import {
 
 export const useWorkflowActions = (workflowId: string) => {
   const queryClient = useQueryClient();
+  const { showToast, updateToast } = useToast();
 
   const invalidateQueries = () => {
-    queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    queryClient.invalidateQueries({ queryKey: ['workflowsList'] });
     queryClient.invalidateQueries({ queryKey: ['workflowDag', workflowId] });
     queryClient.invalidateQueries({ queryKey: ['workflow', workflowId] });
+    queryClient.invalidateQueries({ queryKey: ['systemStats'] });
+    queryClient.invalidateQueries({ queryKey: ['activityFeed'] });
+  };
+
+  const handleAction = async <T,>(
+    actionFn: () => Promise<T>,
+    actionName: string
+  ) => {
+    const toastId = showToast(`${actionName} workflow...`, 'loading');
+    try {
+      const result = await actionFn();
+      invalidateQueries();
+      updateToast(toastId, `Workflow ${actionName.toLowerCase()}d successfully`, 'success');
+      return result;
+    } catch (error: any) {
+      const msg = error.response?.data?.message || error.message || 'Unknown error';
+      updateToast(toastId, `Failed to ${actionName.toLowerCase()}: ${msg}`, 'error', 5000);
+      throw error;
+    }
   };
 
   const executeMutation = useMutation({
-    mutationFn: () => executeWorkflow(workflowId),
-    onSuccess: invalidateQueries,
+    mutationFn: () => handleAction(() => executeWorkflow(workflowId), 'Execute'),
   });
 
   const pauseMutation = useMutation({
-    mutationFn: () => pauseWorkflow(workflowId),
-    onSuccess: invalidateQueries,
+    mutationFn: () => handleAction(() => pauseWorkflow(workflowId), 'Pause'),
   });
 
   const resumeMutation = useMutation({
-    mutationFn: () => resumeWorkflow(workflowId),
-    onSuccess: invalidateQueries,
+    mutationFn: () => handleAction(() => resumeWorkflow(workflowId), 'Resume'),
   });
 
   const resetMutation = useMutation({
-    mutationFn: () => resetWorkflow(workflowId),
-    onSuccess: invalidateQueries,
+    mutationFn: () => handleAction(() => resetWorkflow(workflowId), 'Reset'),
   });
 
   const removeMutation = useMutation({
-    mutationFn: () => deleteWorkflow(workflowId),
-    onSuccess: invalidateQueries,
+    mutationFn: () => handleAction(() => deleteWorkflow(workflowId), 'Delete'),
   });
 
   return {

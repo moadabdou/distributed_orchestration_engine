@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Server, Moon, Sun, LayoutDashboard, Cpu, ListTodo, Menu, X } from 'lucide-react';
+import { Server, Moon, Sun, LayoutDashboard, Cpu, ListTodo, Menu, X, GitMerge } from 'lucide-react';
 import { Outlet, NavLink } from 'react-router-dom';
 import frierenLogo from '../assets/frieren.png';
 
@@ -70,6 +70,9 @@ const DashboardLayout: React.FC = () => {
             <NavLink to="/" onClick={closeMobileMenu} className={getNavClass}>
               <LayoutDashboard className="w-4 h-4" /> Overview
             </NavLink>
+            <NavLink to="/workflows" onClick={closeMobileMenu} className={getNavClass}>
+              <GitMerge className="w-4 h-4" /> Workflows
+            </NavLink>
             <NavLink to="/workers" onClick={closeMobileMenu} className={getNavClass}>
               <Cpu className="w-4 h-4" /> Workers
             </NavLink>
@@ -105,8 +108,8 @@ const DashboardLayout: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pt-16 md:pt-0">
-        <main className="relative z-10 flex-1 m-4 md:ml-6 mb-4 min-h-0 flex flex-col">
+      <div className="flex-1 min-w-0 pt-16 md:pt-0 overflow-y-auto custom-scrollbar">
+        <main className="relative z-10 m-4 md:ml-6 mb-4">
           <Outlet />
         </main>
       </div>

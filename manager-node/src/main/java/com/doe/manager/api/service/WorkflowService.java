@@ -58,7 +58,7 @@ public class WorkflowService {
         List<CreateWorkflowRequest.JobDefinition> jobDefs = req.jobs();
         for (CreateWorkflowRequest.JobDefinition def : jobDefs) {
             Job job = Job.newJob(def.payload())
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 0L)
+                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 60000L)
                     .retryCount(def.retryCount() != null ? def.retryCount() : 0)
                     .build();
             labelToJob.put(def.label(), job);
@@ -252,7 +252,7 @@ public class WorkflowService {
         Map<String, Job> labelToJob = new LinkedHashMap<>();
         for (CreateWorkflowRequest.JobDefinition def : req.jobs()) {
             Job job = Job.newJob(def.payload())
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 0L)
+                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 60000L)
                     .retryCount(def.retryCount() != null ? def.retryCount() : 0)
                     .build();
             labelToJob.put(def.label(), job);

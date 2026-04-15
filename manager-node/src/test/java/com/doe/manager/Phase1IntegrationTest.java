@@ -1,5 +1,6 @@
 package com.doe.manager;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
@@ -51,7 +52,7 @@ class Phase1IntegrationTest {
     void setUp() {
         workflowManager = new WorkflowManager();
         jobQueue = new JobQueue(null, 10000); // Large capacity for pressure tests
-        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10);
+        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10, noOpListener());
         jobResultListener = new JobResultListener(workflowManager, dagScheduler);
         dagScheduler.start();
     }

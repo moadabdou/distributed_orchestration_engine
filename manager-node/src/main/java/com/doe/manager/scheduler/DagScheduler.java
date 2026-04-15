@@ -1,5 +1,6 @@
 package com.doe.manager.scheduler;
 
+import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
@@ -11,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Lazy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,7 +59,7 @@ import java.util.concurrent.TimeUnit;
  * thread-safe per-workflow tracking.
  */
 @Component
-public class DagScheduler {
+public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(DagScheduler.class);
 
@@ -66,6 +68,7 @@ public class DagScheduler {
     private final long schedulerIntervalMs;
     private final boolean failFast;
     private final int maxConcurrentJobsPerWorkflow;
+    private final EngineEventListener eventListener;
 
     /** Tracks which jobs have already been submitted to the queue per workflow, to avoid double-submission. */
     private final Map<UUID, Set<UUID>> submittedJobs = new ConcurrentHashMap<>();
@@ -78,18 +81,23 @@ public class DagScheduler {
             JobQueue jobQueue,
             @Value("${doe.workflow.scheduler-interval-ms:1000}") long schedulerIntervalMs,
             @Value("${doe.workflow.fail-fast:true}") boolean failFast,
-            @Value("${doe.workflow.max-concurrent-jobs-per-workflow:10}") int maxConcurrentJobsPerWorkflow) {
+            @Value("${doe.workflow.max-concurrent-jobs-per-workflow:10}") int maxConcurrentJobsPerWorkflow,
+            @Lazy EngineEventListener eventListener) {
 
         this.workflowManager = workflowManager;
         this.jobQueue = jobQueue;
         this.schedulerIntervalMs = schedulerIntervalMs;
         this.failFast = failFast;
         this.maxConcurrentJobsPerWorkflow = maxConcurrentJobsPerWorkflow;
+        this.eventListener = eventListener;
         this.schedulerExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "dag-scheduler");
             t.setDaemon(true);
             return t;
         });
+
+        // Register to clear state on workflow reset/delete
+        this.workflowManager.addListener(this);
     }
 
     /**
@@ -267,12 +275,15 @@ public class DagScheduler {
     /**
      * Marks a job as CANCELLED because its dependencies could not be met (fail-fast mode).
      * PENDING → CANCELLED is a valid transition; the job was never dispatched.
+     * Fires {@code onJobCancelled} so persistence listeners update the DB record.
      */
     private void failJobWithUnmetDependencies(UUID workflowId, Job job) {
         job.transition(JobStatus.CANCELLED);
         job.setResult("Skipped: dependency failed (fail-fast mode)");
         LOG.info("DagScheduler: cancelled job {} in workflow {} due to unmet dependencies",
                 job.getId(), workflowId);
+        // Notify all EngineEventListeners (incl. DatabaseEventListener) so the DB is updated.
+        eventListener.onJobCancelled(job.getId(), null, job.getResult(), job.getUpdatedAt());
     }
 
     /**
@@ -350,6 +361,48 @@ public class DagScheduler {
      */
     public void forgetWorkflow(UUID workflowId) {
         submittedJobs.remove(workflowId);
+    }
+
+    // ──── WorkflowEventListener overrides ───────────────────────────────────
+
+    @Override
+    public void onWorkflowRegistered(Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowDeleted(UUID workflowId) {
+        forgetWorkflow(workflowId);
+    }
+
+    @Override
+    public void onWorkflowUpdated(Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowExecuted(Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowPaused(Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowResumed(Workflow workflow) {
+        // No-op
+    }
+
+    @Override
+    public void onWorkflowReset(Workflow workflow) {
+        forgetWorkflow(workflow.getId());
+    }
+
+    @Override
+    public void onWorkflowStatusChanged(Workflow workflow) {
+        // No-op
     }
 
     public boolean isRunning() {
