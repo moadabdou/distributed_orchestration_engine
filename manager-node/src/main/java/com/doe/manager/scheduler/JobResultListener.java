@@ -9,6 +9,7 @@ import com.doe.manager.workflow.WorkflowManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -48,7 +49,7 @@ public class JobResultListener implements EngineEventListener, com.doe.manager.w
     /** Reverse index: jobId → workflowId. Built lazily on first encounter. */
     private final Map<UUID, UUID> jobToWorkflow = new ConcurrentHashMap<>();
 
-    public JobResultListener(WorkflowManager workflowManager, @org.springframework.context.annotation.Lazy DagScheduler dagScheduler) {
+    public JobResultListener(WorkflowManager workflowManager, @Lazy DagScheduler dagScheduler) {
         this.workflowManager = workflowManager;
         this.dagScheduler = dagScheduler;
 

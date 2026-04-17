@@ -6,7 +6,6 @@ import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
 import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.api.dto.*;
-import com.doe.manager.api.exception.ResourceNotFoundException;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.entity.WorkflowEntity;
 import com.doe.manager.persistence.repository.JobRepository;

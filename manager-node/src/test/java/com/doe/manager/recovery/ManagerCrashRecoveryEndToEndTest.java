@@ -3,7 +3,6 @@ package com.doe.manager.recovery;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.registry.JobRegistry;
-import com.doe.core.registry.WorkerRegistry;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.repository.JobRepository;
 import com.doe.manager.persistence.repository.WorkerRepository;
@@ -25,11 +24,9 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -108,24 +105,6 @@ class ManagerCrashRecoveryEndToEndTest {
         }
         workers.clear();
         workerThreads.clear();
-    }
-
-    /**
-     * Enqueue a job and poll until it reaches one of the expected statuses.
-     */
-    private Job submitAndAwait(String payload, JobStatus... expected) throws InterruptedException {
-        Job job = Job.newJob(payload).build();
-        jobQueue.enqueue(job);
-
-        long deadline = System.currentTimeMillis() + 10_000;
-        while (System.currentTimeMillis() < deadline) {
-            for (JobStatus s : expected) {
-                if (job.getStatus() == s) return job;
-            }
-            Thread.sleep(50);
-        }
-        fail("Job did not reach expected status within timeout. Final: " + job.getStatus());
-        return job;
     }
 
     /**

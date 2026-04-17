@@ -15,9 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.Collection;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Bridges engine events to Micrometer metrics for Prometheus/Grafana monitoring.

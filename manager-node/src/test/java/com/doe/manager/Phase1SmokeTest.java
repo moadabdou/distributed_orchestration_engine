@@ -1,5 +1,6 @@
 package com.doe.manager;
 
+import com.doe.manager.server.TestManagerServerBuilder;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
@@ -11,7 +12,6 @@ import com.doe.manager.scheduler.JobResultListener;
 import com.doe.manager.workflow.WorkflowManager;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -38,7 +38,7 @@ public class Phase1SmokeTest {
         // Initialize components
         WorkflowManager workflowManager = new WorkflowManager();
         JobQueue jobQueue = new JobQueue(null, 1000);
-        DagScheduler dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10);
+        DagScheduler dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000L, true, 10, TestManagerServerBuilder.NO_OP_LISTENER);
         JobResultListener listener = new JobResultListener(workflowManager, dagScheduler);
         dagScheduler.start();
 

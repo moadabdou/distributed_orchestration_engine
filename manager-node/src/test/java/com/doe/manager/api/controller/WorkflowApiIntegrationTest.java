@@ -1,6 +1,5 @@
 package com.doe.manager.api.controller;
 
-import com.doe.core.model.WorkflowStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +11,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+
 
 import java.util.Map;
 import java.util.UUID;
@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowApiIntegrationTest {
 
     @Container
+    @SuppressWarnings("resource")
     static PostgreSQLContainer<?> postgres =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
                     .withDatabaseName("doe-manager")
@@ -41,7 +42,7 @@ class WorkflowApiIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-    }
+    }     
 
     @Autowired
     private TestRestTemplate rest;
@@ -93,6 +94,7 @@ class WorkflowApiIntegrationTest {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> createWorkflow(String body) {
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.exchange(
                 BASE, HttpMethod.POST,
                 new HttpEntity<>(body, jsonHeaders()),
@@ -119,6 +121,7 @@ class WorkflowApiIntegrationTest {
         Map<String, Object> created = createWorkflow(diamondWorkflowJson("diamond-test"));
         UUID workflowId = UUID.fromString((String) created.get("id"));
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> dagResp = rest.getForEntity(
                 BASE + "/" + workflowId + "/dag", Map.class);
         assertThat(dagResp.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -136,6 +139,7 @@ class WorkflowApiIntegrationTest {
         createWorkflow(linearWorkflowJson("list-test-1"));
         createWorkflow(linearWorkflowJson("list-test-2"));
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(BASE + "?page=0&size=50", Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -149,6 +153,7 @@ class WorkflowApiIntegrationTest {
     void listWorkflows_WithStatusFilter_ReturnsOnlyMatchingWorkflows() {
         createWorkflow(linearWorkflowJson("status-filter-test"));
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(BASE + "?status=DRAFT", Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -165,6 +170,7 @@ class WorkflowApiIntegrationTest {
         Map<String, Object> created = createWorkflow(linearWorkflowJson("get-test"));
         UUID workflowId = UUID.fromString((String) created.get("id"));
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(BASE + "/" + workflowId, Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -175,7 +181,6 @@ class WorkflowApiIntegrationTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void updateWorkflow_ReplacesJobCount() {
         Map<String, Object> created = createWorkflow(linearWorkflowJson("update-test"));
         UUID workflowId = UUID.fromString((String) created.get("id"));
@@ -189,6 +194,7 @@ class WorkflowApiIntegrationTest {
                 }
                 """;
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.exchange(
                 BASE + "/" + workflowId, HttpMethod.PUT,
                 new HttpEntity<>(updateBody, jsonHeaders()), Map.class);
@@ -208,16 +214,17 @@ class WorkflowApiIntegrationTest {
                 HttpEntity.EMPTY, Void.class);
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> get = rest.getForEntity(BASE + "/" + workflowId, Map.class);
         assertThat(get.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void executeWorkflow_ChangesStatusToRunning() {
         Map<String, Object> created = createWorkflow(linearWorkflowJson("execute-test"));
         UUID workflowId = UUID.fromString((String) created.get("id"));
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.exchange(
                 BASE + "/" + workflowId + "/execute", HttpMethod.POST,
                 HttpEntity.EMPTY, Map.class);
@@ -232,6 +239,7 @@ class WorkflowApiIntegrationTest {
         Map<String, Object> created = createWorkflow(linearWorkflowJson("dag-test"));
         UUID workflowId = UUID.fromString((String) created.get("id"));
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(
                 BASE + "/" + workflowId + "/dag", Map.class);
 

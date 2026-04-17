@@ -1,7 +1,6 @@
 package com.doe.manager.workflow;
 
 import com.doe.core.model.Job;
-import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
 import com.doe.core.model.WorkflowStatus;
@@ -24,7 +23,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowPersistenceListenerTest {
 
     @Container
+    @SuppressWarnings("resource")
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
             .withDatabaseName("doe-manager")
             .withUsername("test")

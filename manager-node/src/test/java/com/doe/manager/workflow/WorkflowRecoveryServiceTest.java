@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowRecoveryServiceTest {
 
     @Container
+    @SuppressWarnings("resource")
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
             .withDatabaseName("doe-manager")
             .withUsername("test")

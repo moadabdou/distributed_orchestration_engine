@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LegacyJobApiCompatibilityTest {
 
     @Container
+    @SuppressWarnings("resource")
     static PostgreSQLContainer<?> postgres =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
                     .withDatabaseName("doe-manager")
@@ -57,10 +58,10 @@ class LegacyJobApiCompatibilityTest {
     // ── POST /api/v1/jobs ────────────────────────────────────────────────────
 
     @Test
-    @SuppressWarnings("unchecked")
     void submitJob_Returns201WithPendingStatus() {
         String body = "{\"payload\": \"{\\\"cmd\\\":\\\"echo hello\\\"}\"}";
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.exchange(
                 JOBS_BASE, HttpMethod.POST,
                 new HttpEntity<>(body, jsonHeaders()),
@@ -68,6 +69,7 @@ class LegacyJobApiCompatibilityTest {
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> job = resp.getBody();
         assertThat(job.get("id")).isNotNull();
         assertThat(job.get("status")).isEqualTo(JobStatus.PENDING.name());
@@ -75,10 +77,10 @@ class LegacyJobApiCompatibilityTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void submitJob_WithBlankPayload_Returns400() {
         String body = "{\"payload\": \"\"}";
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.exchange(
                 JOBS_BASE, HttpMethod.POST,
                 new HttpEntity<>(body, jsonHeaders()),
@@ -90,34 +92,37 @@ class LegacyJobApiCompatibilityTest {
     // ── GET /api/v1/jobs ─────────────────────────────────────────────────────
 
     @Test
-    @SuppressWarnings("unchecked")
     void listJobs_Returns200WithPaginatedContent() {
         // Submit at least one job
         String body = "{\"payload\": \"{\\\"cmd\\\": \\\"list-compat-test\\\"}\"}";
         rest.exchange(JOBS_BASE, HttpMethod.POST,
                 new HttpEntity<>(body, jsonHeaders()), Map.class);
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(JOBS_BASE + "?page=0&size=50", Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> page = resp.getBody();
         assertThat(page.get("content")).isNotNull();
         assertThat(page.get("totalElements")).isNotNull();
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void listJobs_WithStatusFilter_ReturnsPendingOnly() {
         // Submit a job (will be PENDING)
         String body = "{\"payload\": \"{\\\"cmd\\\": \\\"status-filter-compat\\\"}\"}";
         rest.exchange(JOBS_BASE, HttpMethod.POST,
                 new HttpEntity<>(body, jsonHeaders()), Map.class);
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(
                 JOBS_BASE + "?status=PENDING&page=0&size=50", Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> page = resp.getBody();
+        @SuppressWarnings("unchecked")
         java.util.List<Map<String, Object>> content =
                 (java.util.List<Map<String, Object>>) page.get("content");
         assertThat(content).allMatch(j -> "PENDING".equals(j.get("status")));
@@ -126,19 +131,21 @@ class LegacyJobApiCompatibilityTest {
     // ── GET /api/v1/jobs/{id} ─────────────────────────────────────────────────
 
     @Test
-    @SuppressWarnings("unchecked")
     void getJobById_Returns200WithJobDetail() {
         // Submit a job first
         String body = "{\"payload\": \"{\\\"cmd\\\": \\\"get-by-id-compat\\\"}\"}";
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> created = rest.exchange(
                 JOBS_BASE, HttpMethod.POST,
                 new HttpEntity<>(body, jsonHeaders()),
                 Map.class);
         String jobId = (String) created.getBody().get("id");
 
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(JOBS_BASE + "/" + jobId, Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> job = resp.getBody();
         assertThat(job.get("id")).isEqualTo(jobId);
         assertThat(job.get("payload")).isEqualTo("{\"cmd\": \"get-by-id-compat\"}");
@@ -146,9 +153,9 @@ class LegacyJobApiCompatibilityTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void getJobById_UnknownId_Returns404() {
         String unknownId = "00000000-0000-0000-0000-000000000000";
+        @SuppressWarnings("rawtypes")
         ResponseEntity<Map> resp = rest.getForEntity(JOBS_BASE + "/" + unknownId, Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

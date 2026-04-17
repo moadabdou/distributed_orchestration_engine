@@ -1,6 +1,5 @@
 package com.doe.manager;
 
-import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.Workflow;
@@ -9,6 +8,7 @@ import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.scheduler.DagScheduler;
 import com.doe.manager.scheduler.JobQueue;
 import com.doe.manager.scheduler.JobResultListener;
+import com.doe.manager.server.TestManagerServerBuilder;
 import com.doe.manager.workflow.WorkflowManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,7 +52,7 @@ class Phase1IntegrationTest {
     void setUp() {
         workflowManager = new WorkflowManager();
         jobQueue = new JobQueue(null, 10000); // Large capacity for pressure tests
-        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10, noOpListener());
+        dagScheduler = new DagScheduler(workflowManager, jobQueue, 60_000, true, 10, TestManagerServerBuilder.NO_OP_LISTENER);
         jobResultListener = new JobResultListener(workflowManager, dagScheduler);
         dagScheduler.start();
     }
@@ -101,9 +101,6 @@ class Phase1IntegrationTest {
         jobResultListener.onJobFailed(job.getId(), null, "error", java.time.Instant.now());
     }
 
-    private int countEnqueuedJobsForWorkflow(UUID workflowId) {
-        return jobQueue.size(); // Simplified
-    }
 
     // =========================================================================
     // HAPPY PATH TESTS
@@ -350,7 +347,7 @@ class Phase1IntegrationTest {
         void emptyWorkflow() {
             Workflow workflow = Workflow.newWorkflow("empty").build();
             workflowManager.registerWorkflow(workflow);
-            Workflow running = workflowManager.executeWorkflow(workflow.getId());
+            workflowManager.executeWorkflow(workflow.getId());
 
             tick(workflow.getId());
             assertEquals(0, jobQueue.size());

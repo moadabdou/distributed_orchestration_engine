@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 public class WorkflowPersistenceListener implements WorkflowEventListener {
