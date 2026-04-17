@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './components/DashboardLayout';
 import DashboardHome from './pages/DashboardHome';
 import JobsView from './pages/JobsView';
+import WorkflowsView from './pages/WorkflowsView';
 import WorkerNodesPanel from './components/WorkerNodesPanel'; // Re-use for workers view
 
 const queryClient = new QueryClient({
@@ -21,6 +22,7 @@ function App() {
         <Routes>
           <Route element={<DashboardLayout />}>
             <Route path="/" element={<DashboardHome />} />
+            <Route path="/workflows" element={<WorkflowsView />} />
             <Route path="/workers" element={<div className="h-full"><WorkerNodesPanel /></div>} />
             <Route path="/jobs" element={<JobsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />

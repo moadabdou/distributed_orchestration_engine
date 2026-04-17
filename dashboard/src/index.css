@@ -102,3 +102,69 @@ body {
   50% { opacity: 0.6; }
   100% { opacity: 0.3; }
 }
+
+/* ---- Custom Scrollbar ---- */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* ---- DAG Panel: ReactFlow overrides ---- */
+.dag-panel .react-flow__renderer {
+  background: transparent !important;
+}
+.dag-panel .react-flow__background {
+  background: transparent !important;
+}
+
+/* ---- DAG Controls dark skin ---- */
+.dag-controls.react-flow__controls {
+  background: rgba(15, 23, 42, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(8px);
+}
+.dag-controls.react-flow__controls button {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: rgba(148, 163, 184, 0.8) !important;
+  fill: rgba(148, 163, 184, 0.8) !important;
+}
+.dag-controls.react-flow__controls button:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #a78bfa !important;
+  fill: #a78bfa !important;
+}
+
+/* ---- DAG Edge Glow: "about to run" pulse ---- */
+@keyframes edgePulseViolet {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(167, 139, 250, 0.5)); }
+  50%       { filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.95)); }
+}
+@keyframes edgePulseIndigo {
+  0%, 100% { filter: drop-shadow(0 0 3px rgba(129, 140, 248, 0.4)); }
+  50%       { filter: drop-shadow(0 0 7px rgba(129, 140, 248, 0.85)); }
+}
+
+.dag-edge-glow-violet .react-flow__edge-path {
+  animation: edgePulseViolet 1.4s ease-in-out infinite;
+}
+.dag-edge-glow-indigo .react-flow__edge-path {
+  animation: edgePulseIndigo 1.6s ease-in-out infinite;
+}
+
+/* Ensure hovered nodes (and their tooltips) are above everything else */
+.react-flow__node:hover {
+  z-index: 1000 !important;
+}
+

@@ -15,6 +15,7 @@
 | **5** | [Scaling & Concurrency](milestone-5-scaling-concurrency/details.md) | #025–#028 (4) | 4–5 days | M1–M4 |
 | **6** | [Dockerization & DevOps](milestone-6-dockerization-devops/details.md) | #029–#032 (4) | 3–4 days | M1–M5 |
 | **7** | [Testing & Production Hardening](milestone-7-testing-hardening/details.md) | #033–#037 (5) | 4–5 days | M1–M6 |
+| **8** | [Advanced Control Plane](milestone-8-advanced-control-plane/details.md) | #038–#041 (4) | 5–7 days | M1–M7 |
 
 ---
 
@@ -102,3 +103,11 @@ graph LR
 | [#035](milestone-7-testing-hardening/issue-035-chaos-testing.md) | Chaos Testing Harness | 🔥 Critical | 1d |
 | [#036](milestone-7-testing-hardening/issue-036-metrics-endpoint.md) | Metrics Endpoint (Actuator) | 🟡 Medium | 0.5d |
 | [#037](milestone-7-testing-hardening/issue-037-documentation.md) | Project Documentation & Architecture | 🟡 Medium | 1d |
+
+### Milestone 8 — Advanced Control Plane
+| Issue | Title | Priority | Estimate |
+|-------|-------|----------|----------|
+| [#038](milestone-8-advanced-control-plane/issue-038-dag-visualizer.md) | DAG Visualizer | 🔴 High | 1.5d |
+| [#039](milestone-8-advanced-control-plane/issue-039-visual-job-scheduling-management.md) | Visual Job Scheduling & Management | 🔴 High | 1.5d |
+| [#040](milestone-8-advanced-control-plane/issue-040-full-system-controls.md) | Full System Controls | 🟡 Medium | 1d |
+| [#041](milestone-8-advanced-control-plane/issue-041-ui-refinements.md) | UI Refinements (See and Fix) | 🟡 Medium | 1d |

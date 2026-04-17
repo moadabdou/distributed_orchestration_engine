@@ -34,6 +34,13 @@ public class JobEntity {
     @Column(name = "worker_id", columnDefinition = "uuid")
     private UUID workerId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_id")
+    private WorkflowEntity workflow;
+
+    @Column(name = "dag_index")
+    private Integer dagIndex;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private JobStatus status;
@@ -71,6 +78,8 @@ public class JobEntity {
     public UUID getId()           { return id; }
     public UUID getWorkerId()     { return workerId; }
     public JobStatus getStatus()  { return status; }
+    public WorkflowEntity getWorkflow() { return workflow; }
+    public Integer getDagIndex()  { return dagIndex; }
     public String getPayload()    { return payload; }
     public String getResult()     { return result; }
     public int getRetryCount()    { return retryCount; }
@@ -79,6 +88,8 @@ public class JobEntity {
 
     public void setWorkerId(UUID workerId)    { this.workerId = workerId; }
     public void setStatus(JobStatus status)   { this.status = status; }
+    public void setWorkflow(WorkflowEntity workflow) { this.workflow = workflow; }
+    public void setDagIndex(Integer dagIndex) { this.dagIndex = dagIndex; }
     public void setResult(String result)      { this.result = result; }
     public void setRetryCount(int count)      { this.retryCount = count; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }

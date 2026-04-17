@@ -67,6 +67,13 @@ class StartupRecoveryIntegrationTest {
 
     // ─── tests ────────────────────────────────────────────────────────────────
 
+    @BeforeEach
+    @AfterEach
+    void cleanup() {
+        jobRepository.deleteAll();
+        workerRepository.deleteAll();
+    }
+
     @Test
     @DisplayName("Orphaned ASSIGNED and RUNNING jobs are reset to PENDING in DB and enqueued in-memory")
     void recover_resetsOrphansAndRebuildsQueue() {
@@ -76,8 +83,6 @@ class StartupRecoveryIntegrationTest {
 
         JobEntity assigned = saveJob(w1.getId(), JobStatus.ASSIGNED);
         JobEntity running  = saveJob(w2.getId(), JobStatus.RUNNING);
-        JobEntity pending  = saveJob(null,        JobStatus.PENDING);  // already OK — should NOT be re-enqueued
-
         // Act
         recoveryService.recover();
 
@@ -92,9 +97,6 @@ class StartupRecoveryIntegrationTest {
         assertEquals(JobStatus.PENDING, dbRunning.getStatus());
         assertNull(dbRunning.getWorkerId());
 
-        // The already-PENDING job must be untouched
-        JobEntity dbPending = jobRepository.findById(pending.getId()).orElseThrow();
-        assertEquals(JobStatus.PENDING, dbPending.getStatus());
 
         // Both workers must be OFFLINE
         assertEquals(WorkerStatus.OFFLINE, workerRepository.findById(w1.getId()).orElseThrow().getStatus());

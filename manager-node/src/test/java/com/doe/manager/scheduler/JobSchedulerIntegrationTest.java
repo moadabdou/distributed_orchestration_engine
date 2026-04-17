@@ -346,7 +346,7 @@ class JobSchedulerIntegrationTest {
     void capacityExhaustion() throws Exception {
         Socket ws = new Socket("localhost", server.getLocalPort());
         ws.setSoTimeout(0);
-        UUID workerId = registerWorker(ws);
+        registerWorker(ws);
         Thread.sleep(200);
 
         JobQueue queue = server.getJobScheduler().getQueue();
@@ -432,7 +432,7 @@ class JobSchedulerIntegrationTest {
         CountDownLatch churnLatch = new CountDownLatch(1);
 
         // Churn worker connections (crash simulation)
-        Thread churnThread = Thread.ofVirtual().start(() -> {
+        Thread.ofVirtual().start(() -> {
             try {
                 for (int i = 0; i < 20; i++) {
                     Socket ws = new Socket("localhost", server.getLocalPort());
@@ -685,7 +685,6 @@ class JobSchedulerIntegrationTest {
             // 4. Each worker reads ASSIGN_JOB messages and completes them rapidly
             for (int i = 0; i < numWorkers; i++) {
                 final Socket ws = workerSockets.get(i);
-                final UUID wid = workerIds.get(i);
 
                 Thread.ofVirtual().start(() -> {
                     try {

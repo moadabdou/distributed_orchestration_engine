@@ -3,8 +3,6 @@ package com.doe.worker.executor;
 import com.doe.core.executor.TaskExecutor;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,7 +40,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShellScriptPlugin implements TaskExecutor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ShellScriptPlugin.class);
     private static final Gson GSON = new Gson();
 
     /** Maximum bytes captured from process output before truncation (64 KB). */

@@ -38,40 +38,56 @@ const SubmitJobModal: React.FC<SubmitJobModalProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-all duration-300">
-      <div className="glass-panel w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-300" style={{ background: 'rgba(255, 255, 255, 0.65)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md transition-all duration-300">
+      <div className="glass-panel w-full max-w-md p-8 relative animate-in fade-in zoom-in duration-300 border border-white/20 dark:border-white/10 shadow-2xl">
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/50 text-slate-500 hover:text-slate-800 hover:bg-white transition-colors"
+          className="absolute top-5 right-5 w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-all border border-transparent hover:border-white/20"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
         
-        <h3 className="text-xl font-semibold text-slate-700 mb-1">Submit New Job</h3>
-        <p className="text-xs text-slate-500 mb-4">Provide a valid JSON payload to orchestrate a new task in the network.</p>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-500">
+            <Play className="w-5 h-5 fill-current" />
+          </div>
+          <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-700 to-slate-900 dark:from-slate-100 dark:to-slate-300">Submit New Job</h3>
+        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 pl-13">Orchestrate a new task across the distribution network.</p>
         
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/50 to-mint-500/50 rounded-2xl blur opacity-25 group-focus-within:opacity-100 transition duration-500"></div>
             <textarea
-              className="w-full h-40 bg-slate-800/80 text-mint-200 font-mono text-sm p-4 rounded-2xl outline-none focus:ring-2 focus:ring-purple-400 border border-slate-700/50 shadow-inner custom-scrollbar"
+              className="relative w-full h-48 bg-white/50 dark:bg-slate-900/80 text-slate-800 dark:text-mint-200 font-mono text-sm p-5 rounded-2xl outline-none border border-white/60 dark:border-white/10 shadow-inner custom-scrollbar transition-all"
               value={payloadText}
               onChange={(e) => setPayloadText(e.target.value)}
               spellCheck={false}
+              placeholder='{ "type": "...", "data": "..." }'
             />
           </div>
           
-          {error && <div className="text-red-500 text-xs font-semibold px-2">{error}</div>}
+          {error && <div className="text-red-500 text-xs font-bold px-2 animate-pulse">{error}</div>}
           
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-tr from-purple-500 to-mint-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity focus:ring-4 focus:ring-purple-200 disabled:opacity-50"
+            className="w-full relative group"
           >
-            {isSubmitting ? 'Submitting...' : (
-              <>
-                <Play className="w-4 h-4" fill="currentColor" /> Submit Job
-              </>
-            )}
+            <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-mint-600 rounded-2xl blur opacity-40 group-hover:opacity-75 transition duration-300"></div>
+            <div className="relative flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-purple-600 to-mint-600 text-white rounded-2xl font-bold hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100">
+              {isSubmitting ? (
+                <>
+                  <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 fill-white" />
+                  <span className="tracking-wide">EXECUTE TASK</span>
+                </>
+              )}
+            </div>
           </button>
         </form>
       </div>

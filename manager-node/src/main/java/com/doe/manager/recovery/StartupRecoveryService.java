@@ -79,7 +79,7 @@ public class StartupRecoveryService {
         LOG.info("Startup recovery: marked {} worker(s) OFFLINE", workersReset);
 
         // ── 2. Reset orphaned in-flight jobs (ASSIGNED / RUNNING → PENDING) ───
-        List<JobEntity> orphans = jobRepository.findByStatusIn(
+        List<JobEntity> orphans = jobRepository.findByStatusInAndWorkflowIsNull(
                 List.of(JobStatus.ASSIGNED, JobStatus.RUNNING));
 
         Instant now = Instant.now();
@@ -90,14 +90,14 @@ public class StartupRecoveryService {
             jobRepository.save(entity);
         }
         if (!orphans.isEmpty()) {
-            LOG.info("Startup recovery: reset {} orphaned job(s) to PENDING", orphans.size());
+            LOG.info("Startup recovery: reset {} orphaned standalone job(s) to PENDING", orphans.size());
         }
 
         // ── 3. Load ALL PENDING jobs into the in-memory queue / registry ──────
         // This covers both jobs that were already PENDING before the crash
         // and the orphans we just reset above (findByStatus re-reads from DB
         // so those are included).
-        List<JobEntity> pending = jobRepository.findByStatus(JobStatus.PENDING);
+        List<JobEntity> pending = jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING);
 
         for (JobEntity entity : pending) {
             Job job = Job.newJob(entity.getPayload())

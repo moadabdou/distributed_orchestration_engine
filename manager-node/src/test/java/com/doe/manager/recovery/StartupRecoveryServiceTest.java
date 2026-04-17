@@ -61,8 +61,8 @@ class StartupRecoveryServiceTest {
         JobEntity running  = makeEntity(id2, JobStatus.RUNNING);
 
         when(workerRepository.updateAllStatuses(WorkerStatus.OFFLINE)).thenReturn(2);
-        when(jobRepository.findByStatusIn(anyCollection())).thenReturn(List.of(assigned, running));
-        when(jobRepository.findByStatus(JobStatus.PENDING)).thenReturn(List.of(assigned, running));
+        when(jobRepository.findByStatusInAndWorkflowIsNull(anyCollection())).thenReturn(List.of(assigned, running));
+        when(jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING)).thenReturn(List.of(assigned, running));
 
         service.recover();
 
@@ -85,8 +85,8 @@ class StartupRecoveryServiceTest {
     @DisplayName("All workers are bulk-set to OFFLINE on every startup")
     void recover_marksAllWorkersOffline() {
         when(workerRepository.updateAllStatuses(WorkerStatus.OFFLINE)).thenReturn(3);
-        when(jobRepository.findByStatusIn(anyCollection())).thenReturn(List.of());
-        when(jobRepository.findByStatus(JobStatus.PENDING)).thenReturn(List.of());
+        when(jobRepository.findByStatusInAndWorkflowIsNull(anyCollection())).thenReturn(List.of());
+        when(jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING)).thenReturn(List.of());
 
         service.recover();
 
@@ -98,13 +98,13 @@ class StartupRecoveryServiceTest {
     @SuppressWarnings("unchecked")
     void recover_queriesCorrectStatuses() {
         when(workerRepository.updateAllStatuses(any())).thenReturn(0);
-        when(jobRepository.findByStatusIn(anyCollection())).thenReturn(List.of());
-        when(jobRepository.findByStatus(JobStatus.PENDING)).thenReturn(List.of());
+        when(jobRepository.findByStatusInAndWorkflowIsNull(anyCollection())).thenReturn(List.of());
+        when(jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING)).thenReturn(List.of());
 
         service.recover();
 
         ArgumentCaptor<Collection<JobStatus>> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(jobRepository).findByStatusIn(captor.capture());
+        verify(jobRepository).findByStatusInAndWorkflowIsNull(captor.capture());
         Collection<JobStatus> queried = captor.getValue();
         assertTrue(queried.contains(JobStatus.ASSIGNED));
         assertTrue(queried.contains(JobStatus.RUNNING));
@@ -120,8 +120,8 @@ class StartupRecoveryServiceTest {
         JobEntity pending = makeEntity(id, JobStatus.PENDING);
 
         when(workerRepository.updateAllStatuses(any())).thenReturn(0);
-        when(jobRepository.findByStatusIn(anyCollection())).thenReturn(List.of()); // no orphans
-        when(jobRepository.findByStatus(JobStatus.PENDING)).thenReturn(List.of(pending));
+        when(jobRepository.findByStatusInAndWorkflowIsNull(anyCollection())).thenReturn(List.of()); // no orphans
+        when(jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING)).thenReturn(List.of(pending));
 
         service.recover();
 
@@ -139,8 +139,8 @@ class StartupRecoveryServiceTest {
     @DisplayName("No enqueue and no save when DB has no jobs at all")
     void recover_emptyDb_noEnqueueNoSave() {
         when(workerRepository.updateAllStatuses(any())).thenReturn(0);
-        when(jobRepository.findByStatusIn(anyCollection())).thenReturn(List.of());
-        when(jobRepository.findByStatus(JobStatus.PENDING)).thenReturn(List.of());
+        when(jobRepository.findByStatusInAndWorkflowIsNull(anyCollection())).thenReturn(List.of());
+        when(jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING)).thenReturn(List.of());
 
         service.recover();
 
@@ -156,9 +156,9 @@ class StartupRecoveryServiceTest {
         entity.setRetryCount(2);
 
         when(workerRepository.updateAllStatuses(any())).thenReturn(0);
-        when(jobRepository.findByStatusIn(anyCollection())).thenReturn(List.of(entity));
+        when(jobRepository.findByStatusInAndWorkflowIsNull(anyCollection())).thenReturn(List.of(entity));
         // After reset, entity is PENDING — return it from the PENDING query
-        when(jobRepository.findByStatus(JobStatus.PENDING)).thenReturn(List.of(entity));
+        when(jobRepository.findByStatusAndWorkflowIsNull(JobStatus.PENDING)).thenReturn(List.of(entity));
 
         service.recover();
 

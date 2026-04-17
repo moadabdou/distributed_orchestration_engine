@@ -3,10 +3,12 @@ package com.doe.manager.server;
 import com.doe.core.event.EngineEventListener;
 import com.doe.core.registry.WorkerRegistry;
 import com.doe.core.registry.JobRegistry;
+import com.doe.manager.scheduler.DagScheduler;
 import com.doe.manager.scheduler.JobQueue;
 import com.doe.manager.scheduler.JobScheduler;
 import com.doe.manager.scheduler.CrashRecoveryHandler;
 import com.doe.manager.scheduler.JobTimeoutMonitor;
+import org.mockito.Mockito;
 
 import java.time.Instant;
 import java.util.List;
@@ -34,7 +36,8 @@ public class TestManagerServerBuilder {
         JobScheduler jobScheduler = new JobScheduler(jobQueue, registry, NO_OP_LISTENER);
         CrashRecoveryHandler recoveryHandler = new CrashRecoveryHandler(jobRegistry, jobQueue, NO_OP_LISTENER);
         JobTimeoutMonitor jobTimeoutMonitor = new JobTimeoutMonitor(jobRegistry, recoveryHandler);
-        return new ManagerServer(port, check, timeout, "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z", 4, registry, jobRegistry, jobScheduler, jobTimeoutMonitor,
+        DagScheduler dagScheduler = Mockito.mock(DagScheduler.class);
+        return new ManagerServer(port, check, timeout, "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z", 4, registry, jobRegistry, dagScheduler, jobScheduler, jobTimeoutMonitor,
                 NO_OP_LISTENER, List.of(recoveryHandler));
     }
 

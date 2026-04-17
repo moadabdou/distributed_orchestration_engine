@@ -5,10 +5,11 @@ import WorkerCard from './WorkerCard';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 const WorkerNodesPanel: React.FC = () => {
-  const { data: workers, isLoading, isError } = useQuery({
+  const { data: workers, isLoading, isFetching, isError } = useQuery({
     queryKey: ['workers'],
     queryFn: getWorkers,
     refetchInterval: 2000,
+    placeholderData: (prev) => prev,
   });
 
   // Stabilize worker order to prevent visual shuffling during polling
@@ -17,7 +18,7 @@ const WorkerNodesPanel: React.FC = () => {
   }, [workers]);
 
   return (
-    <div className="glass-panel p-6 flex flex-col h-full gap-4 relative">
+    <div className="glass-panel p-6 flex flex-col h-full min-h-[400px] gap-4 relative">
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-xl font-medium text-slate-700 tracking-wide">WORKER NODES</h2>
         <div className="flex items-center gap-2 text-sm text-slate-600 font-medium">
@@ -39,7 +40,7 @@ const WorkerNodesPanel: React.FC = () => {
           <p>No workers connected</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-max overflow-y-auto pr-2 custom-scrollbar">
+        <div className={`grid grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-max overflow-y-auto pr-2 custom-scrollbar transition-opacity duration-300 ${isFetching ? 'opacity-70' : 'opacity-100'}`}>
           {sortedWorkers?.map(worker => (
             <WorkerCard key={worker.id} worker={worker} />
           ))}

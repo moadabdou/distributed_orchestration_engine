@@ -5,6 +5,8 @@ import com.doe.manager.persistence.entity.JobEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -47,4 +49,29 @@ public interface JobRepository extends JpaRepository<JobEntity, UUID> {
      * @return list of matching jobs
      */
     List<JobEntity> findByStatusIn(Collection<JobStatus> statuses);
+
+    /**
+     * Finds all standalone jobs (not part of any workflow) with the given status.
+     */
+    @Query("SELECT j FROM JobEntity j WHERE j.status = :status AND j.workflow IS NULL")
+    List<JobEntity> findByStatusAndWorkflowIsNull(@Param("status") JobStatus status);
+
+    /**
+     * Finds all standalone jobs (not part of any workflow) whose status is in the given collection.
+     */
+    @Query("SELECT j FROM JobEntity j WHERE j.status IN :statuses AND j.workflow IS NULL")
+    List<JobEntity> findByStatusInAndWorkflowIsNull(@Param("statuses") Collection<JobStatus> statuses);
+
+    /**
+     * Finds all jobs associated with a given workflow ID.
+     *
+     * @param workflowId the ID of the workflow
+     * @return list of matching jobs
+     */
+    List<JobEntity> findByWorkflowId(UUID workflowId);
+
+    /**
+     * Counts all jobs associated with a given workflow ID.
+     */
+    int countByWorkflowId(UUID workflowId);
 }
