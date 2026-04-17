@@ -73,7 +73,7 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
     /** Tracks which jobs have already been submitted to the queue per workflow, to avoid double-submission. */
     private final Map<UUID, Set<UUID>> submittedJobs = new ConcurrentHashMap<>();
 
-    private final ScheduledExecutorService schedulerExecutor;
+    private ScheduledExecutorService schedulerExecutor;
     private volatile boolean running;
 
     public DagScheduler(
@@ -107,6 +107,15 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
         if (running) {
             return;
         }
+        
+        if (schedulerExecutor.isShutdown() || schedulerExecutor.isTerminated()) {
+            this.schedulerExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "dag-scheduler");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        
         running = true;
         schedulerExecutor.scheduleAtFixedRate(
                 this::schedulingTick,

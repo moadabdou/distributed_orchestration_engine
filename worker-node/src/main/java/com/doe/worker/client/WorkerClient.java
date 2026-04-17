@@ -251,14 +251,22 @@ public class WorkerClient {
     private void runMainLoop(InputStream in, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) throws IOException {
         LOG.info("Worker {} entering main loop, waiting for commands...", workerId);
 
+        int consecutiveTimeouts = 0;
+        final int MAX_TIMEOUTS = 3;
+
         while (running) {
             Message message;
             try {
                 message = ProtocolDecoder.decode(in);
+                consecutiveTimeouts = 0; // Reset on successful read
             } catch (SocketTimeoutException e) {
                 if (!running) break;
-                // Reading from the input stream timed out because the manager hasn't sent any commands.
-                // This is normal and expected when idle. We just loop and continue waiting.
+                consecutiveTimeouts++;
+                if (consecutiveTimeouts >= MAX_TIMEOUTS) {
+                    LOG.error("Worker {}: reached max consecutive timeouts ({}), disconnecting...", workerId, MAX_TIMEOUTS);
+                    throw new IOException("Too many consecutive read timeouts");
+                }
+                LOG.debug("Worker {}: read timeout {}/{}, waiting...", workerId, consecutiveTimeouts, MAX_TIMEOUTS);
                 continue;
             } catch (EOFException e) {
                 LOG.info("Worker {}: manager closed the connection (stream ended).", workerId);
