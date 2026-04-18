@@ -1,5 +1,9 @@
 # Issue 045: SQL/Database Operator
 
+> [!IMPORTANT]
+> **SUPERSEDED**: This specialized Java operator has been dropped in favor of using the `PythonTaskExecutor`.
+> Database operations should now be performed using Python scripts with libraries like `sqlalchemy` and `psycopg2-binary`, which are pre-installed in the worker nodes.
+
 ## Description
 Implement a SQL operator that executes queries against various databases (PostgreSQL, MySQL, BigQuery, etc.) with result handling.
 

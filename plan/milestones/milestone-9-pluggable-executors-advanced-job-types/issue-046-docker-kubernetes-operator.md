@@ -1,5 +1,9 @@
 # Issue 046: Docker/Kubernetes Operator
 
+> [!IMPORTANT]
+> **SUPERSEDED**: This specialized Java operator has been dropped in favor of using the `PythonTaskExecutor`.
+> Container and K8s orchestration should now be performed using Python scripts with the `docker` and `kubernetes` libraries, which are pre-installed in the worker nodes.
+
 ## Description
 Implement a Docker/Kubernetes operator that runs containers, manages container lifecycle, and deploys to K8s clusters.
 
