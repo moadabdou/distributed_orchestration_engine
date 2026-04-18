@@ -195,13 +195,13 @@ public class WorkflowService {
         List<DagGraphResponse.DagNodeResponse> nodes = w.getJobs().stream()
                 .map(wj -> {
                     Job job = wj.getJob();
-                    // Enrich from DB for result/workerId
+                    // Enrich from DB for status/result/workerId
                     JobEntity entity = jobRepository.findById(job.getId()).orElse(null);
                     return new DagGraphResponse.DagNodeResponse(
                             job.getId(),
                             "job-" + wj.getDagIndex(),   // label (no label field in domain; use index-based)
                             wj.getDagIndex(),
-                            job.getStatus(),
+                            entity != null ? entity.getStatus() : job.getStatus(),
                             job.getPayload(),
                             entity != null ? entity.getResult() : null,
                             entity != null ? entity.getWorkerId() : null,

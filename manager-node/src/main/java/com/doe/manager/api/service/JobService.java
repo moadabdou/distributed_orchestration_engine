@@ -2,14 +2,18 @@ package com.doe.manager.api.service;
 
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
+import com.doe.core.model.Workflow;
+import com.doe.core.model.WorkflowJob;
 import com.doe.manager.api.dto.JobRequest;
 import com.doe.manager.api.dto.JobResponse;
 import com.doe.manager.api.exception.ResourceNotFoundException;
 import com.doe.manager.metrics.MetricsService;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.repository.JobRepository;
+import com.doe.manager.scheduler.DagScheduler;
 import com.doe.manager.scheduler.JobQueue;
 import com.doe.manager.server.ManagerServer;
+import com.doe.manager.workflow.WorkflowManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,12 +35,21 @@ public class JobService {
     private final JobQueue jobQueue;
     private final ManagerServer managerServer;
     private final MetricsService metricsService;
+    private final WorkflowManager workflowManager;
+    private final DagScheduler dagScheduler;
 
-    public JobService(JobRepository jobRepository, JobQueue jobQueue, ManagerServer managerServer, MetricsService metricsService) {
+    public JobService(JobRepository jobRepository, 
+                      JobQueue jobQueue, 
+                      ManagerServer managerServer, 
+                      MetricsService metricsService,
+                      WorkflowManager workflowManager,
+                      DagScheduler dagScheduler) {
         this.jobRepository = jobRepository;
         this.jobQueue = jobQueue;
         this.managerServer = managerServer;
         this.metricsService = metricsService;
+        this.workflowManager = workflowManager;
+        this.dagScheduler = dagScheduler;
     }
 
     @Transactional
@@ -88,15 +101,33 @@ public class JobService {
             entity.setUpdatedAt(java.time.Instant.now());
             jobRepository.save(entity);
 
-            // Eager cancel in memory so JobScheduler drops it
+            // Eager cancel in memory (JobRegistry contains enqueued jobs)
             managerServer.getJobRegistry().get(id).ifPresent(job -> {
                 try {
-                    job.transition(JobStatus.CANCELLED);
                     job.setResult("Cancelled via API before assignment");
+                    job.transition(JobStatus.CANCELLED);
                 } catch (IllegalStateException e) {
                     // Ignore concurrent state transition race
                 }
             });
+
+            // Sync with Workflow domain model if it belongs to one
+            if (entity.getWorkflow() != null) {
+                UUID workflowId = entity.getWorkflow().getId();
+                Workflow workflow = workflowManager.getWorkflow(workflowId);
+                if (workflow != null) {
+                    WorkflowJob wj = workflow.getJob(id);
+                    if (wj != null) {
+                        try {
+                            wj.getJob().setResult("Cancelled via API");
+                            wj.getJob().transition(JobStatus.CANCELLED);
+                        } catch (IllegalStateException e) {
+                            // ignore if already terminal
+                        }
+                    }
+                }
+                dagScheduler.onWorkflowJobChanged(workflowId);
+            }
             return;
         }
         
@@ -113,6 +144,12 @@ public class JobService {
              });
         } else {
              managerServer.sendCancelJob(workerId, id);
+        }
+
+        // If it's in a workflow, notify the scheduler even if it's currently running/assigned,
+        // so the scheduler is primed for when the result eventually comes back as CANCELLED.
+        if (entity.getWorkflow() != null) {
+            dagScheduler.onWorkflowJobChanged(entity.getWorkflow().getId());
         }
     }
 
