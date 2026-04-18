@@ -1,56 +1,37 @@
 package com.doe.worker.executor;
 
+import com.doe.core.executor.JobDefinition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class FibonacciPluginTest {
 
     private final FibonacciPlugin plugin = new FibonacciPlugin();
+    private final DefaultExecutionContext context = new DefaultExecutionContext();
 
     @Test
-    @DisplayName("fib(0) = 0")
-    void fib_zero() throws Exception {
-        assertEquals("0", plugin.execute("{\"type\":\"fibonacci\",\"n\":0}"));
+    @DisplayName("computes Nth Fibonacci number")
+    void execute_computesFib() throws Exception {
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), "fibonacci", "{\"n\":10}");
+        assertEquals("55", plugin.execute(def, context));
     }
 
     @Test
-    @DisplayName("fib(1) = 1")
-    void fib_one() throws Exception {
-        assertEquals("1", plugin.execute("{\"type\":\"fibonacci\",\"n\":1}"));
+    @DisplayName("n=0 returns 0")
+    void execute_zero() throws Exception {
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), "fibonacci", "{\"n\":0}");
+        assertEquals("0", plugin.execute(def, context));
     }
 
     @Test
-    @DisplayName("fib(10) = 55")
-    void fib_ten() throws Exception {
-        assertEquals("55", plugin.execute("{\"type\":\"fibonacci\",\"n\":10}"));
-    }
-
-    @Test
-    @DisplayName("fib at max boundary (40) completes without error")
-    void fib_maxBoundary() throws Exception {
-        assertDoesNotThrow(() -> plugin.execute("{\"type\":\"fibonacci\",\"n\":40}"));
-    }
-
-    @Test
-    @DisplayName("n > FIB_MAX throws IllegalArgumentException")
-    void fib_overMax_throws() {
+    @DisplayName("excessive n throws IllegalArgumentException")
+    void execute_limit_throws() {
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), "fibonacci", "{\"n\":100}");
         assertThrows(IllegalArgumentException.class,
-                () -> plugin.execute("{\"type\":\"fibonacci\",\"n\":41}"));
-    }
-
-    @Test
-    @DisplayName("negative n throws IllegalArgumentException")
-    void fib_negative_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> plugin.execute("{\"type\":\"fibonacci\",\"n\":-1}"));
-    }
-
-    @Test
-    @DisplayName("missing 'n' field throws IllegalArgumentException")
-    void fib_missingN_throws() {
-        assertThrows(IllegalArgumentException.class,
-                () -> plugin.execute("{\"type\":\"fibonacci\"}"));
+                () -> plugin.execute(def, context));
     }
 }

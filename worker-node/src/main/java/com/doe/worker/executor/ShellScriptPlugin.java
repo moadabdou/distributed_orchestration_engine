@@ -1,5 +1,7 @@
 package com.doe.worker.executor;
 
+import com.doe.core.executor.ExecutionContext;
+import com.doe.core.executor.JobDefinition;
 import com.doe.core.executor.TaskExecutor;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -7,36 +9,14 @@ import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Plugin for {@code "type": "bash"} jobs. Executes a shell script using
- * {@code bash -c} via {@link ProcessBuilder} and captures combined stdout+stderr.
- *
- * <h2>Expected payload</h2>
- * <pre>
- * {
- *   "type":      "bash",
- *   "script":    "echo hello world",
- *   "timeoutMs": 5000
- * }
- * </pre>
- *
- * <h2>Timeout layering</h2>
- * The plugin honours the payload-level {@code timeoutMs} field by calling
- * {@link Process#waitFor(long, TimeUnit)} and force-killing the process on
- * breach. However, {@code WorkerClient} also wraps every plugin invocation in
- * a {@code CompletableFuture.orTimeout()} — that outer timeout is the
- * <em>hard wall</em>. The plugin-level timeout is a best-effort, OS-level
- * signal that fires first and guarantees the process is dead even if the
- * calling thread is interrupted before the outer timeout can act.
- *
- * <h2>Output cap</h2>
- * Stdout+stderr are merged and captured into a buffer capped at
- * {@value #MAX_OUTPUT_BYTES} bytes. Output beyond the cap is silently
- * discarded and a warning suffix is appended so callers know truncation
- * occurred.
+ * {@code bash -c} via {@link ProcessBuilder}.
  */
 public class ShellScriptPlugin implements TaskExecutor {
 
@@ -48,9 +28,16 @@ public class ShellScriptPlugin implements TaskExecutor {
     private static final long DEFAULT_TIMEOUT_MS = 30_000;
     private static final String TRUNCATION_SUFFIX = "\n[...output truncated at 64 KB...]";
 
+    private final AtomicReference<Process> activeProcess = new AtomicReference<>();
+
     @Override
-    public String execute(String payload) throws Exception {
-        JsonObject json = GSON.fromJson(payload, JsonObject.class);
+    public String getType() {
+        return "bash";
+    }
+
+    @Override
+    public String execute(JobDefinition definition, ExecutionContext context) throws Exception {
+        JsonObject json = GSON.fromJson(definition.payload(), JsonObject.class);
         if (json == null || !json.has("script")) {
             throw new IllegalArgumentException("bash payload requires a 'script' field");
         }
@@ -66,11 +53,16 @@ public class ShellScriptPlugin implements TaskExecutor {
 
         ProcessBuilder pb = new ProcessBuilder("bash", "-c", script);
         pb.redirectErrorStream(true); // merge stderr into stdout
+        
+        // Add environment variables from context
+        pb.environment().putAll(context.getEnvVars());
+        // Note: secrets should be handled carefully, here we just put them as env vars if they exist
+        pb.environment().putAll(context.getSecrets());
 
+        context.log("Starting bash script: " + (script.length() > 50 ? script.substring(0, 47) + "..." : script));
         Process process = pb.start();
+        activeProcess.set(process);
 
-        // Capture output on a virtual thread concurrently so that waitFor() below
-        // is not blocked by the read loop when a script produces no output.
         var outputFuture = CompletableFuture.supplyAsync(
                 () -> {
                     try {
@@ -90,7 +82,6 @@ public class ShellScriptPlugin implements TaskExecutor {
             }
 
             int exitCode = process.exitValue();
-            // Join output future (process has exited, so the stream is closed)
             String output = outputFuture.join();
 
             if (exitCode != 0) {
@@ -102,14 +93,26 @@ public class ShellScriptPlugin implements TaskExecutor {
             return output;
         } finally {
             process.destroy();
+            activeProcess.set(null);
         }
     }
 
-    /**
-     * Reads up to {@value #MAX_OUTPUT_BYTES} bytes from the stream, returning
-     * the content as a UTF-8 string. Appends a truncation notice when the cap
-     * is hit so callers are aware output is incomplete.
-     */
+    @Override
+    public void cancel() {
+        Process p = activeProcess.get();
+        if (p != null && p.isAlive()) {
+            p.destroyForcibly();
+        }
+    }
+
+    @Override
+    public void validate(JobDefinition definition) {
+        JsonObject json = GSON.fromJson(definition.payload(), JsonObject.class);
+        if (json == null || !json.has("script")) {
+            throw new IllegalArgumentException("bash payload requires a 'script' field");
+        }
+    }
+
     private static String captureOutput(InputStream in) throws IOException {
         byte[] buffer = new byte[MAX_OUTPUT_BYTES];
         int totalRead = 0;
@@ -120,13 +123,11 @@ public class ShellScriptPlugin implements TaskExecutor {
             totalRead += read;
         }
 
-        // Check if there is more data beyond the cap
         boolean truncated = false;
         if (totalRead == MAX_OUTPUT_BYTES) {
             int extra = in.read();
             if (extra != -1) {
                 truncated = true;
-                // Drain the rest so the process can exit cleanly
                 in.transferTo(java.io.OutputStream.nullOutputStream());
             }
         }

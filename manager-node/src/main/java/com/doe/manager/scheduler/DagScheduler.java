@@ -7,6 +7,7 @@ import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
 import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.workflow.WorkflowManager;
+import com.doe.manager.workflow.WorkflowEventListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,7 @@ import java.util.concurrent.TimeUnit;
  * thread-safe per-workflow tracking.
  */
 @Component
-public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListener {
+public class DagScheduler implements WorkflowEventListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(DagScheduler.class);
 

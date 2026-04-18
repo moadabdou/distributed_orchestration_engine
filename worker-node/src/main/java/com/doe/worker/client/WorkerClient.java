@@ -5,10 +5,10 @@ import com.doe.core.protocol.MessageType;
 import com.doe.core.protocol.ProtocolDecoder;
 import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.util.RetryPolicy;
-import com.doe.worker.executor.EchoPlugin;
-import com.doe.worker.executor.FibonacciPlugin;
-import com.doe.worker.executor.ShellScriptPlugin;
-import com.doe.worker.executor.SleepPlugin;
+import com.doe.core.executor.ExecutionContext;
+import com.doe.core.executor.JobDefinition;
+import com.doe.core.executor.TaskExecutor;
+import com.doe.worker.executor.DefaultExecutionContext;
 import com.doe.worker.executor.TaskPluginRegistry;
 import com.doe.worker.executor.UnknownTaskTypeException;
 import com.google.gson.Gson;
@@ -61,11 +61,7 @@ public class WorkerClient {
 
     /** Builds the default registry used when no custom registry is supplied. */
     private static TaskPluginRegistry defaultRegistry() {
-        return new TaskPluginRegistry()
-                .register("echo",      new EchoPlugin())
-                .register("sleep",     new SleepPlugin())
-                .register("fibonacci", new FibonacciPlugin())
-                .register("bash",      new ShellScriptPlugin());
+        return new TaskPluginRegistry();
     }
 
     private final String host;
@@ -75,10 +71,13 @@ public class WorkerClient {
     private final String authToken;
     private final TaskPluginRegistry registry;
     private final ExecutorService jobExecutor;
-    private final ConcurrentHashMap<String, Future<?>> activeJobs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, JobState> activeJobs = new ConcurrentHashMap<>();
+
+    private record JobState(Future<String> future, TaskExecutor executor) {}
 
     private volatile boolean running = true;
     private volatile Socket socket;
+    private volatile BlockingQueue<OutboundMessage> currentEgressQueue;
 
     /**
      * Creates a new WorkerClient with default heartbeat interval (5000ms).
@@ -194,6 +193,7 @@ public class WorkerClient {
             OutputStream out = s.getOutputStream();
             
             BlockingQueue<OutboundMessage> egressQueue = new LinkedBlockingQueue<>();
+            this.currentEgressQueue = egressQueue;
             writerThread = Thread.ofVirtual().name("egress-writer").start(() -> runWriterLoop(s, out, egressQueue));
 
             // ── 2. Send REGISTER_WORKER ───────────────────────────────────────
@@ -298,85 +298,98 @@ public class WorkerClient {
      */
     private void handleAssignJob(Message message, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) {
         JsonObject envelope = GSON.fromJson(message.payloadAsString(), JsonObject.class);
-        String jobId = envelope.has("jobId") ? envelope.get("jobId").getAsString() : "unknown";
-        String payloadJson = envelope.has("payload") ? GSON.toJson(envelope.get("payload")) : "{}";
+        String jobIdStr = envelope.has("jobId") ? envelope.get("jobId").getAsString() : "unknown";
+        UUID uuid = "unknown".equals(jobIdStr) ? UUID.randomUUID() : UUID.fromString(jobIdStr);
+        
+        // Extract payload and remove "type" field
+        JsonObject payloadObj = envelope.has("payload") ? envelope.get("payload").getAsJsonObject() : new JsonObject();
+        String type = payloadObj.has("type") ? payloadObj.get("type").getAsString() : "unknown";
+        payloadObj.remove("type");
+        String cleanedPayload = GSON.toJson(payloadObj);
+
         long timeoutMs = envelope.has("timeoutMs") ? envelope.get("timeoutMs").getAsLong() : 60000;
 
-        LOG.info("Worker {}: received ASSIGN_JOB — jobId={}, timeoutMs={}", workerId, jobId, timeoutMs);
+        LOG.info("Worker {}: received ASSIGN_JOB — jobId={}, type={}, timeoutMs={}", workerId, jobIdStr, type, timeoutMs);
 
         // ── 1. Notify manager that we are now executing ───────────────────────
         try {
             JsonObject runningBody = new JsonObject();
-            runningBody.addProperty("jobId", jobId);
+            runningBody.addProperty("jobId", jobIdStr);
             byte[] runningBytes = ProtocolEncoder.encode(MessageType.JOB_RUNNING, GSON.toJson(runningBody));
             egressQueue.put(new OutboundMessage(runningBytes,
-                    e -> LOG.error("Worker {}: failed to send JOB_RUNNING for job {}", workerId, jobId, e)));
-            LOG.info("Worker {}: sent JOB_RUNNING for job {}", workerId, jobId);
+                    e -> LOG.error("Worker {}: failed to send JOB_RUNNING for job {}", workerId, jobIdStr, e)));
+            LOG.info("Worker {}: sent JOB_RUNNING for job {}", workerId, jobIdStr);
         } catch (InterruptedException e) {
             // re-add interrupted flag to current thread
             Thread.currentThread().interrupt();
-            LOG.warn("Worker {}: interrupted while sending JOB_RUNNING for job {}", workerId, jobId);
+            LOG.warn("Worker {}: interrupted while sending JOB_RUNNING for job {}", workerId, jobIdStr);
             return;
         }
 
         // ── 2. Execute the task asynchronously ──────────────────────────────────
-        Future<String> taskFuture = jobExecutor.submit(() -> registry.execute(payloadJson));
-        activeJobs.put(jobId, taskFuture);
+        JobDefinition definition = new JobDefinition(uuid, type, cleanedPayload);
+        ExecutionContext context = new DefaultExecutionContext();
+        
+        TaskExecutor executor;
+        try {
+            executor = registry.getExecutor(type)
+                    .orElseThrow(() -> new UnknownTaskTypeException(type));
+        } catch (UnknownTaskTypeException e) {
+            LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobIdStr, type);
+            sendJobResult(jobIdStr, "FAILED", "Unknown task type: " + type, workerId);
+            return;
+        }
 
-        Thread.ofVirtual().name("job-waiter-" + jobId).start(() -> {
+        Future<String> taskFuture = jobExecutor.submit(() -> executor.execute(definition, context));
+        activeJobs.put(jobIdStr, new JobState(taskFuture, executor));
+
+        Thread.ofVirtual().name("job-waiter-" + jobIdStr).start(() -> {
             String status;
             String output;
             try {
                 String result = taskFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
                 status = "COMPLETED";
                 output = result;
-                LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobId, output);
+                LOG.info("Worker {}: job {} COMPLETED — output: {}", workerId, jobIdStr, output);
             } catch (java.util.concurrent.TimeoutException e) {
+                try {
+                    executor.cancel();
+                } catch (Exception ex) {
+                    LOG.error("Worker {}: error calling cancel() for timed out job {}", workerId, jobIdStr, ex);
+                }
                 taskFuture.cancel(true);
                 status = "FAILED";
                 output = "Job execution timed out after " + timeoutMs + "ms";
-                LOG.warn("Worker {}: job {} FAILED — timeout", workerId, jobId);
+                LOG.warn("Worker {}: job {} FAILED — timeout", workerId, jobIdStr);
             } catch (java.util.concurrent.CancellationException e) {
                 status = "CANCELLED";
                 output = "Job was cancelled by the manager";
-                LOG.info("Worker {}: job {} CANCELLED", workerId, jobId);
+                LOG.info("Worker {}: job {} CANCELLED", workerId, jobIdStr);
             } catch (java.util.concurrent.ExecutionException e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
                 if (cause instanceof InterruptedException) {
                     status = "CANCELLED";
                     output = "Job was cancelled by the manager";
-                    LOG.info("Worker {}: job {} CANCELLED", workerId, jobId);
+                    LOG.info("Worker {}: job {} CANCELLED", workerId, jobIdStr);
                 } else {
                     status = "FAILED";
                     output = cause.getMessage() != null ? cause.getMessage() : cause.getClass().getSimpleName();
                     if (cause instanceof UnknownTaskTypeException) {
-                        LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobId, cause.getMessage());
+                        LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobIdStr, cause.getMessage());
                     } else {
-                        LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobId, output);
+                        LOG.warn("Worker {}: job {} FAILED — {}", workerId, jobIdStr, output);
                     }
                 }
             } catch (InterruptedException e) {
                 status = "CANCELLED";
                 output = "Job was cancelled by the manager";
-                LOG.info("Worker {}: job {} CANCELLED", workerId, jobId);
+                LOG.info("Worker {}: job {} CANCELLED", workerId, jobIdStr);
             }
 
-            activeJobs.remove(jobId);
+            activeJobs.remove(jobIdStr);
 
             // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
-            try {
-                JsonObject resultBody = new JsonObject();
-                resultBody.addProperty("jobId", jobId);
-                resultBody.addProperty("status", status);
-                resultBody.addProperty("output", output);
-                byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
-                egressQueue.put(new OutboundMessage(resultBytes,
-                        err -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, err)));
-                LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
-            }
+            sendJobResult(jobIdStr, status, output, workerId);
         });
         // Worker stays in the loop — ready for the next ASSIGN_JOB
     }
@@ -387,12 +400,36 @@ public class WorkerClient {
 
         LOG.info("Worker {}: received CANCEL_JOB — jobId={}", workerId, jobId);
 
-        Future<?> future = activeJobs.get(jobId);
-        if (future != null) {
-            boolean cancelled = future.cancel(true);
+        JobState state = activeJobs.get(jobId);
+        if (state != null) {
+            try {
+                state.executor().cancel();
+            } catch (Exception e) {
+                LOG.error("Worker {}: error calling cancel() on executor for job {}", workerId, jobId, e);
+            }
+            boolean cancelled = state.future().cancel(true);
             LOG.info("Worker {}: attempting to cancel job {} — successful: {}", workerId, jobId, cancelled);
-        } else {
-            LOG.warn("Worker {}: received CANCEL_JOB for unknown or already completed job {}", workerId, jobId);
+        }
+    }
+
+    private void sendJobResult(String jobId, String status, String output, UUID workerId) {
+        BlockingQueue<OutboundMessage> queue = currentEgressQueue;
+        if (queue == null) {
+            LOG.warn("Worker {}: cannot send JOB_RESULT for job {}, connection lost", workerId, jobId);
+            return;
+        }
+        try {
+            JsonObject resultBody = new JsonObject();
+            resultBody.addProperty("jobId", jobId);
+            resultBody.addProperty("status", status);
+            resultBody.addProperty("output", output);
+            byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
+            queue.put(new OutboundMessage(resultBytes,
+                    err -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, err)));
+            LOG.info("Worker {}: sent JOB_RESULT ({}) for job {}", workerId, status, jobId);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warn("Worker {}: interrupted while sending JOB_RESULT for job {}", workerId, jobId);
         }
     }
 
