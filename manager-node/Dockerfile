@@ -42,8 +42,10 @@ WORKDIR /app
 # Copy the fat JAR from the builder stage
 COPY --from=builder /build/manager-node/target/*.jar app.jar
 
-# Create a non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# Pre-create log storage directory and set permissions
+RUN mkdir -p data/var/logs/jobs && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app/data
 USER appuser
 
 # Expose HTTP (Spring MVC + Actuator) and TCP (worker connections)

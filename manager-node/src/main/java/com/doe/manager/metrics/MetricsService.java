@@ -182,19 +182,19 @@ public class MetricsService implements EngineEventListener {
     }
 
     @Override
-    public void onJobCompleted(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobCompleted(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         jobsCompletedCounter.increment();
         recordJobDuration(jobId, updatedAt);
     }
 
     @Override
-    public void onJobFailed(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobFailed(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         jobsFailedCounter.increment();
         recordJobDuration(jobId, updatedAt);
     }
 
     @Override
-    public void onJobCancelled(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobCancelled(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         jobsCancelledCounter.increment();
         recordJobDuration(jobId, updatedAt);
     }

@@ -23,9 +23,9 @@ public class TestManagerServerBuilder {
         @Override public void onWorkerDied(UUID w) {}
         @Override public void onJobAssigned(UUID j, UUID w, Instant t) {}
         @Override public void onJobRunning(UUID j, Instant t) {}
-        @Override public void onJobCompleted(UUID j, UUID w, String r, Instant t) {}
-        @Override public void onJobFailed(UUID j, UUID w, String r, Instant t) {}
-        @Override public void onJobCancelled(UUID j, UUID w, String r, Instant t) {}
+        @Override public void onJobCompleted(UUID j, UUID w, String s, Instant t) {}
+        @Override public void onJobFailed(UUID j, UUID w, String s, Instant t) {}
+        @Override public void onJobCancelled(UUID j, UUID w, String s, Instant t) {}
         @Override public void onJobRequeued(UUID j, int retry, Instant t) {}
     };
 

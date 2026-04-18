@@ -1,5 +1,6 @@
 package com.doe.core.executor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,4 +29,14 @@ public interface ExecutionContext {
      * @param message the message to log
      */
     void log(String message);
+
+    /**
+     * @return the list of logs collected during execution
+     */
+    List<String> getBufferedLogs();
+
+    /**
+     * @return the cumulative size of buffered logs in characters
+     */
+    long getBufferedLogsSize();
 }

@@ -26,6 +26,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -336,7 +337,7 @@ public class WorkerClient {
                     .orElseThrow(() -> new UnknownTaskTypeException(type));
         } catch (UnknownTaskTypeException e) {
             LOG.warn("Worker {}: job {} FAILED — unknown task type: {}", workerId, jobIdStr, type);
-            sendJobResult(jobIdStr, "FAILED", "Unknown task type: " + type, workerId);
+            sendJobResult(jobIdStr, "FAILED", "Unknown task type: " + type, List.of(), workerId);
             return;
         }
 
@@ -389,7 +390,7 @@ public class WorkerClient {
             activeJobs.remove(jobIdStr);
 
             // ── 3. Send JOB_RESULT back to manager ───────────────────────────────
-            sendJobResult(jobIdStr, status, output, workerId);
+            sendJobResult(jobIdStr, status, output, context.getBufferedLogs(), workerId);
         });
         // Worker stays in the loop — ready for the next ASSIGN_JOB
     }
@@ -412,7 +413,7 @@ public class WorkerClient {
         }
     }
 
-    private void sendJobResult(String jobId, String status, String output, UUID workerId) {
+    private void sendJobResult(String jobId, String status, String summary, List<String> logs, UUID workerId) {
         BlockingQueue<OutboundMessage> queue = currentEgressQueue;
         if (queue == null) {
             LOG.warn("Worker {}: cannot send JOB_RESULT for job {}, connection lost", workerId, jobId);
@@ -422,7 +423,8 @@ public class WorkerClient {
             JsonObject resultBody = new JsonObject();
             resultBody.addProperty("jobId", jobId);
             resultBody.addProperty("status", status);
-            resultBody.addProperty("output", output);
+            resultBody.addProperty("summary", summary);
+            resultBody.add("logs", GSON.toJsonTree(logs));
             byte[] resultBytes = ProtocolEncoder.encode(MessageType.JOB_RESULT, GSON.toJson(resultBody));
             queue.put(new OutboundMessage(resultBytes,
                     err -> LOG.error("Worker {}: failed to send JOB_RESULT for job {}", workerId, jobId, err)));

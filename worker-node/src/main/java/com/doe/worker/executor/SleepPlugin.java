@@ -36,8 +36,19 @@ public class SleepPlugin implements TaskExecutor {
             throw new IllegalArgumentException("sleep 'ms' must be non-negative, got: " + ms);
         }
         
-        context.log("Sleeping for " + ms + "ms");
-        Thread.sleep(ms);
+        context.log("Plan: Sleep for " + ms + "ms");
+        
+        long remaining = ms;
+        long interval = 500;
+        
+        while (remaining > 0) {
+            long toSleep = Math.min(remaining, interval);
+            context.log("Sleeping... remaining: " + remaining + "ms");
+            Thread.sleep(toSleep);
+            remaining -= toSleep;
+        }
+        
+        context.log("Sleep finished.");
         return "slept " + ms + "ms";
     }
 

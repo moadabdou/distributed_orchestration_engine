@@ -1,5 +1,6 @@
-import React from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { ExternalLink } from 'lucide-react';
+import { getJobLogsUrl } from '../api/jobs';
 
 interface CustomDagNodeProps {
   data: {
@@ -123,9 +124,20 @@ const CustomDagNode: React.FC<CustomDagNodeProps> = ({ data }) => {
               </div>
             )}
             {data.result && (
-              <div className="flex justify-between items-start mt-2 border-t border-slate-800 pt-2">
-                <span className="text-xs text-slate-500">Result</span>
-                <span className="text-xs text-slate-300 font-mono line-clamp-3 text-right max-w-[160px] overflow-hidden text-ellipsis leading-relaxed">
+              <div className="flex flex-col gap-2 mt-2 border-t border-slate-800 pt-2 pointer-events-auto">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-500">Result</span>
+                  <a 
+                    href={getJobLogsUrl(data.jobId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 hover:underline font-bold"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    LOGS
+                  </a>
+                </div>
+                <span className="text-xs text-slate-300 font-mono line-clamp-2 leading-relaxed">
                   {data.result}
                 </span>
               </div>

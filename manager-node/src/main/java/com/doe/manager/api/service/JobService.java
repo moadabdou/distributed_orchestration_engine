@@ -17,6 +17,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.UUID;
 
 @Service
@@ -121,6 +126,19 @@ public class JobService {
             entityPage = jobRepository.findAll(pageable);
         }
         return entityPage.map(this::mapToResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public String getJobLogs(UUID jobId) {
+        Path logFile = Paths.get("data", "var", "logs", "jobs", jobId.toString() + ".log");
+        if (!Files.exists(logFile)) {
+            throw new ResourceNotFoundException("Logs not found for job: " + jobId);
+        }
+        try {
+            return Files.readString(logFile, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read logs for job: " + jobId, e);
+        }
     }
 
     private JobResponse mapToResponse(JobEntity entity) {

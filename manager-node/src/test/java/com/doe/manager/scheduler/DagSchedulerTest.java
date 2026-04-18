@@ -542,9 +542,9 @@ class DagSchedulerTest {
             public void onWorkerDied(java.util.UUID w) {}
             public void onJobAssigned(java.util.UUID j, java.util.UUID w, java.time.Instant t) {}
             public void onJobRunning(java.util.UUID j, java.time.Instant t) {}
-            public void onJobCompleted(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
-            public void onJobFailed(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
-            public void onJobCancelled(java.util.UUID j, java.util.UUID w, String r, java.time.Instant t) {}
+            public void onJobCompleted(java.util.UUID j, java.util.UUID w, String s, java.time.Instant t) {}
+            public void onJobFailed(java.util.UUID j, java.util.UUID w, String s, java.time.Instant t) {}
+            public void onJobCancelled(java.util.UUID j, java.util.UUID w, String s, java.time.Instant t) {}
             public void onJobRequeued(java.util.UUID j, int rc, java.time.Instant t) {}
         };
     }

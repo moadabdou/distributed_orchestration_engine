@@ -28,6 +28,9 @@ import javax.crypto.SecretKey;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -374,7 +377,8 @@ public class ManagerServer implements SmartLifecycle {
     private void handleJobResult(UUID workerId, WorkerConnection localConnection, Message message) {
         JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
         String status = json.has("status") ? json.get("status").getAsString() : "FAILED";
-        String output = json.has("output") ? json.get("output").getAsString() : "";
+        String summary = json.has("summary") ? json.get("summary").getAsString() : "";
+        List<String> logs = json.has("logs") ? GSON.fromJson(json.get("logs"), new com.google.gson.reflect.TypeToken<List<String>>(){}.getType()) : List.of();
         
         if (!json.has("jobId")) {
             LOG.warn("Worker {}: message missing jobId", workerId);
@@ -390,13 +394,14 @@ public class ManagerServer implements SmartLifecycle {
 
         if (!workerId.equals(job.getAssignedWorkerId())) {
             LOG.warn("Worker {}: ignored JOB_RESULT for job {} (no longer assigned to this worker)", workerId, job.getId());
-            // It's possible the capacity was implicitly returned via a timeout rollback,
-            // but we can make sure by calling releaseCapacity here too.
             registry.releaseCapacity(workerId, jobId);
             return;
         }
 
-        job.setResult(output);
+        // 1. Save logs to file
+        saveJobLogs(jobId, logs);
+
+        job.setResult(summary);
         try {
             JobStatus target;
             if ("COMPLETED".equals(status)) {
@@ -408,27 +413,38 @@ public class ManagerServer implements SmartLifecycle {
             }
             
             job.transition(target);
-            LOG.info("Worker {}: job {} → {} | output: {}", workerId, job.getId(), target, output);
+            LOG.info("Worker {}: job {} → {} | summary: {}", workerId, job.getId(), target, summary);
 
             long durationMs = java.time.Duration.between(job.getCreatedAt(), job.getUpdatedAt()).toMillis();
             LOG.info("Job {} {} by Worker {} in {}ms", job.getId(), target, workerId, durationMs);
 
-            // Release capacity BEFORE notifying DB so the correct active job count is read
-            LOG.info("Worker {}: released capacity after job {}", workerId, job.getId());
             registry.releaseCapacity(workerId, job.getId());
 
             // Persist the final job state to DB
             if (target == JobStatus.COMPLETED) {
-                eventListener.onJobCompleted(job.getId(), workerId, output, job.getUpdatedAt());
+                eventListener.onJobCompleted(job.getId(), workerId, summary, job.getUpdatedAt());
             } else if (target == JobStatus.CANCELLED) {
-                eventListener.onJobCancelled(job.getId(), workerId, output, job.getUpdatedAt());
+                eventListener.onJobCancelled(job.getId(), workerId, summary, job.getUpdatedAt());
             } else {
-                eventListener.onJobFailed(job.getId(), workerId, output, job.getUpdatedAt());
+                eventListener.onJobFailed(job.getId(), workerId, summary, job.getUpdatedAt());
             }
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to terminal state: {}", workerId, job.getId(), e.getMessage());
-            LOG.info("Worker {}: released capacity after job {} failure", workerId, job.getId());
             registry.releaseCapacity(workerId, job.getId());
+        }
+    }
+
+    private void saveJobLogs(UUID jobId, List<String> logs) {
+        try {
+            Path logDir = Paths.get("data", "var", "logs", "jobs");
+            Files.createDirectories(logDir);
+            Path logFile = logDir.resolve(jobId.toString() + ".log");
+            
+            String jsonLogs = GSON.toJson(logs);
+            Files.writeString(logFile, jsonLogs, StandardCharsets.UTF_8);
+            LOG.debug("Saved logs for job {} to {}", jobId, logFile);
+        } catch (IOException e) {
+            LOG.error("Failed to save logs for job {}", jobId, e);
         }
     }
 
