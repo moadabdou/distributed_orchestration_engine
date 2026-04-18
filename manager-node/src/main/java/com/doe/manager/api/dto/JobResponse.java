@@ -10,6 +10,7 @@ public record JobResponse(
         String payload,
         String result,
         UUID workerId,
+        UUID workflowId,
         int retryCount,
         Instant createdAt,
         Instant updatedAt

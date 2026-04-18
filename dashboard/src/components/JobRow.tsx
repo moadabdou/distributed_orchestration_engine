@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import type { Job } from '../types/api';
-import { cancelJob, getJobLogsUrl } from '../api/jobs';
+import { cancelJob, retryJob, getJobLogsUrl } from '../api/jobs';
 import { useQueryClient } from '@tanstack/react-query';
-import { Box, PlaySquare, CheckSquare, XSquare, Clock, ChevronDown, ChevronRight, HardDrive, MoreVertical, XCircle, Trash2, ExternalLink, FileText } from 'lucide-react';
+import { Box, PlaySquare, CheckSquare, XSquare, Clock, ChevronDown, ChevronRight, HardDrive, MoreVertical, XCircle, Trash2, ExternalLink, FileText, RotateCcw } from 'lucide-react';
 import { getWorkerTheme } from '../utils/workerColors';
 
 interface JobRowProps {
@@ -14,6 +14,7 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   
   const queryClient = useQueryClient();
 
@@ -27,16 +28,36 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
     setIsCancelling(true);
     try {
       await cancelJob(job.id);
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      queryClient.invalidateQueries({ queryKey: ['jobsList'] });
-      queryClient.invalidateQueries({ queryKey: ['systemStats'] });
-      queryClient.invalidateQueries({ queryKey: ['activityFeed'] });
+      invalidateQueries();
     } catch (error) {
       console.error('Failed to cancel job:', error);
     } finally {
       setIsCancelling(false);
       setIsCancelModalOpen(false);
     }
+  };
+
+  const handleRetryClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropdownOpen(false);
+    setIsRetrying(true);
+    try {
+      await retryJob(job.id);
+      invalidateQueries();
+    } catch (error) {
+      console.error('Failed to retry job:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const invalidateQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    queryClient.invalidateQueries({ queryKey: ['jobsList'] });
+    queryClient.invalidateQueries({ queryKey: ['systemStats'] });
+    queryClient.invalidateQueries({ queryKey: ['activityFeed'] });
+    queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    queryClient.invalidateQueries({ queryKey: ['workflow', job.workflowId] });
   };
 
   // Derive a pseudo progress value based on status
@@ -171,6 +192,16 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
                       <FileText className="w-4 h-4" />
                       View Logs
                     </a>
+                    {(job.status === 'FAILED' || job.status === 'CANCELLED') && (
+                      <button
+                        onClick={handleRetryClick}
+                        disabled={isRetrying}
+                        className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 cursor-pointer disabled:opacity-50"
+                      >
+                        <RotateCcw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                        {isRetrying ? 'Retrying...' : 'Retry Job'}
+                      </button>
+                    )}
                     <button
                       onClick={handleCancelClick}
                       disabled={!isCancelable}

@@ -1,12 +1,15 @@
+import React, { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { ExternalLink } from 'lucide-react';
-import { getJobLogsUrl } from '../api/jobs';
+import { ExternalLink, RotateCcw, Trash2, FileText, Loader2 } from 'lucide-react';
+import { cancelJob, retryJob, getJobLogsUrl } from '../api/jobs';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface CustomDagNodeProps {
   data: {
     label: string;
     jobId: string;
     status: 'PENDING' | 'ASSIGNED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+    workflowId?: string;
     workerId?: string | null;
     createdAt?: string;
     updatedAt?: string;
@@ -70,7 +73,49 @@ const getNodeStyle = (status: string) => {
 };
 
 const CustomDagNode: React.FC<CustomDagNodeProps> = ({ data }) => {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const queryClient = useQueryClient();
   const s = getNodeStyle(data.status);
+
+  const invalidateQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    queryClient.invalidateQueries({ queryKey: ['jobsList'] });
+    queryClient.invalidateQueries({ queryKey: ['systemStats'] });
+    queryClient.invalidateQueries({ queryKey: ['activityFeed'] });
+    queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    queryClient.invalidateQueries({ queryKey: ['workflow', data.workflowId] });
+    queryClient.invalidateQueries({ queryKey: ['dag', data.workflowId] });
+  };
+
+  const handleRetry = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsRetrying(true);
+    try {
+      await retryJob(data.jobId);
+      invalidateQueries();
+    } catch (error) {
+      console.error('Failed to retry job:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const handleCancel = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsCancelling(true);
+    try {
+      await cancelJob(data.jobId);
+      invalidateQueries();
+    } catch (error) {
+      console.error('Failed to cancel job:', error);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const isCancelable = data.status === 'PENDING' || data.status === 'ASSIGNED' || data.status === 'RUNNING';
+  const isRetriable = data.status === 'FAILED' || data.status === 'CANCELLED';
 
   return (
     <div
@@ -101,6 +146,40 @@ const CustomDagNode: React.FC<CustomDagNodeProps> = ({ data }) => {
         position={Position.Right}
         className="!w-2.5 !h-2.5 !bg-slate-600 !border-slate-900 !border-2"
       />
+
+      {/* Floating Action Bar (appears on hover) */}
+      <div className="absolute -top-3 right-0 flex items-center gap-1.5 p-1 rounded-lg bg-slate-900/90 backdrop-blur-md border border-white/10 shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 z-[1001] pointer-events-auto">
+        {isRetriable && (
+          <button
+            onClick={handleRetry}
+            disabled={isRetrying}
+            className="p-1.5 rounded-md hover:bg-slate-700 text-indigo-400 transition-colors disabled:opacity-50"
+            title="Retry Job"
+          >
+            {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+          </button>
+        )}
+        {isCancelable && (
+          <button
+            onClick={handleCancel}
+            disabled={isCancelling}
+            className="p-1.5 rounded-md hover:bg-slate-700 text-rose-400 transition-colors disabled:opacity-50"
+            title="Cancel Job"
+          >
+            {isCancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
+        )}
+        <a
+          href={getJobLogsUrl(data.jobId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-1.5 rounded-md hover:bg-slate-700 text-slate-400 transition-colors"
+          title="View Logs"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <FileText className="w-3.5 h-3.5" />
+        </a>
+      </div>
 
       {/* Hover Info Card */}
       <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-4 rounded-xl border border-slate-700/60 bg-slate-900/95 backdrop-blur-xl shadow-2xl z-50 w-[280px] pointer-events-none opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">

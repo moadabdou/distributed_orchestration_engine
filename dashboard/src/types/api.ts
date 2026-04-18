@@ -4,6 +4,7 @@ export interface Job {
   payload: string;
   result: string | null;
   workerId: string | null;
+  workflowId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -423,6 +423,17 @@ public class DagScheduler implements WorkflowEventListener {
     }
 
     /**
+     * Clears a specific job from the submitted-jobs tracker for a workflow.
+     * Called when a job is being retried.
+     */
+    public void forgetJob(UUID workflowId, UUID jobId) {
+        Set<UUID> workflowJobs = submittedJobs.get(workflowId);
+        if (workflowJobs != null) {
+            workflowJobs.remove(jobId);
+        }
+    }
+
+    /**
      * Clears the entire submitted-jobs tracker for a workflow.
      * Called when a workflow is reset or deleted so that stale tracking doesn't interfere.
      */

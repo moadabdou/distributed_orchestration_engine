@@ -2,7 +2,7 @@ import random
 import json
 
 TIMEOUT_THRESHOLD_MS = 60_000
-NORMAL_SLEEP_RANGE = (2_000, 20_000)
+NORMAL_SLEEP_RANGE = (5_000, 20_000)
 
 PYTHON_SCRIPTS = [
     # 1. Simple but meaningful

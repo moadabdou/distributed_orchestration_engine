@@ -48,14 +48,14 @@ public enum JobStatus {
     FAILED {
         @Override
         public Set<JobStatus> validTransitions() {
-            return EnumSet.noneOf(JobStatus.class);
+            return EnumSet.of(PENDING);
         }
     },
 
     CANCELLED {
         @Override
         public Set<JobStatus> validTransitions() {
-            return EnumSet.noneOf(JobStatus.class);
+            return EnumSet.of(PENDING);
         }
     };
 

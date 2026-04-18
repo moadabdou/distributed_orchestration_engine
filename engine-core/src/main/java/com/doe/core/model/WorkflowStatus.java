@@ -37,14 +37,14 @@ public enum WorkflowStatus {
     COMPLETED {
         @Override
         public boolean canTransitionTo(WorkflowStatus target) {
-            return false;
+            return target == RUNNING;
         }
     },
 
     FAILED {
         @Override
         public boolean canTransitionTo(WorkflowStatus target) {
-            return false;
+            return target == RUNNING;
         }
     };
 

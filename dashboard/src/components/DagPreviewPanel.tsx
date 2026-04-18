@@ -86,6 +86,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
           ...n,
           label: n.label || n.jobId,
           status: n.status || 'PENDING',
+          workflowId: dag.workflowId,
         },
       })));
       lastLaidOutJobIds.current = currentJobIds;
@@ -103,6 +104,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
                 status: newData.status || 'PENDING',
                 result: newData.result || null,
                 workerId: newData.workerId || null,
+                workflowId: dag.workflowId,
               },
             };
           }

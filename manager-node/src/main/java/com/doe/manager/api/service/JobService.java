@@ -165,6 +165,63 @@ public class JobService {
         return entityPage.map(this::mapToResponse);
     }
 
+    @Transactional
+    public void retryJob(UUID id) {
+        JobEntity entity = jobRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Job not found with id: " + id));
+
+        JobStatus status = entity.getStatus();
+
+        if (status != JobStatus.FAILED && status != JobStatus.CANCELLED) {
+            throw new IllegalStateException("Can only retry jobs that are in FAILED or CANCELLED status, but was: " + status);
+        }
+
+        // 1. Update DB Record
+        entity.setStatus(JobStatus.PENDING);
+        entity.setResult(null);
+        entity.setWorkerId(null);
+        entity.setRetryCount(entity.getRetryCount() + 1);
+        entity.setUpdatedAt(java.time.Instant.now());
+        jobRepository.save(entity);
+
+        // 2. Sync with Memory/Workflow if applicable
+        if (entity.getWorkflow() != null) {
+            UUID workflowId = entity.getWorkflow().getId();
+            Workflow workflow = workflowManager.getWorkflow(workflowId);
+            if (workflow != null) {
+                WorkflowJob wj = workflow.getJob(id);
+                if (wj != null) {
+                    try {
+                        // Reset memory state in the workflow job
+                        Job job = wj.getJob();
+                        job.transition(JobStatus.PENDING);
+                        job.setResult(null);
+                        
+                        // Clear from scheduler's "already submitted" tracker
+                        dagScheduler.forgetJob(workflowId, id);
+                        
+                        // Resume workflow if it was terminal
+                        if (workflow.getStatus() == com.doe.core.model.WorkflowStatus.COMPLETED || 
+                            workflow.getStatus() == com.doe.core.model.WorkflowStatus.FAILED) {
+                            workflowManager.resumeWorkflow(workflowId);
+                        }
+                    } catch (IllegalStateException e) {
+                        // ignore if already terminal in a way we didn't expect
+                    }
+                }
+            }
+            // Trigger scheduler tick for this workflow
+            dagScheduler.onWorkflowJobChanged(workflowId);
+        } else {
+            // Standalone job retry
+            Job job = Job.newJob(entity.getPayload())
+                    .id(entity.getId())
+                    .status(JobStatus.PENDING)
+                    .build();
+            jobQueue.enqueue(job);
+        }
+    }
+
     @Transactional(readOnly = true)
     public String getJobLogs(UUID jobId) {
         Path logFile = Paths.get("data", "var", "logs", "jobs", jobId.toString() + ".log");
@@ -185,6 +242,7 @@ public class JobService {
                 entity.getPayload(),
                 entity.getResult(),
                 entity.getWorkerId(),
+                entity.getWorkflow() != null ? entity.getWorkflow().getId() : null,
                 entity.getRetryCount(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
