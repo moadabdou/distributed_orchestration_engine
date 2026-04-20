@@ -114,4 +114,17 @@ public class JobLogController {
                 """.formatted(id, id, formattedLogs);
         return ResponseEntity.ok(html);
     }
+    
+    @GetMapping(value = "/{id}/raw", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> getJobLogsRaw(@PathVariable("id") UUID id) {
+        String rawLogs = jobService.getJobLogs(id);
+        String formattedLogs;
+        try {
+            List<String> logLines = GSON.fromJson(rawLogs, new TypeToken<List<String>>(){}.getType());
+            formattedLogs = String.join("\n", logLines);
+        } catch (Exception e) {
+            formattedLogs = rawLogs;
+        }
+        return ResponseEntity.ok(formattedLogs);
+    }
 }

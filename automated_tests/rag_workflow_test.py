@@ -260,15 +260,35 @@ ack = sys.stdin.readline()
     
     # Check evaluator logs for the final result
     dag = get_dag(wf_id)
+
+    #fix : 
+    """
+    SUCCESS: RAG Workflow completed.
+Traceback (most recent call last):
+  File "/home/moadabdou/coding/serious_projects/distributed_orchestration_engine/automated_tests/rag_workflow_test.py", line 281, in <module>
+    if test_rag_workflow():
+       ~~~~~~~~~~~~~~~~~^^
+  File "/home/moadabdou/coding/serious_projects/distributed_orchestration_engine/automated_tests/rag_workflow_test.py", line 263, in test_rag_workflow
     eval_job = next(j for j in dag["nodes"] if j["label"] == "job-4")
-    logs = get_job_logs(eval_job["jobId"])
+StopIteration
+    """
+    #fix : 
+    eval_job = None
+    for j in dag["nodes"]:
+        if j["label"] == "job-4":
+            eval_job = j
+            break
+    if eval_job is not None:
+        logs = get_job_logs(eval_job["jobId"])
+    else:
+        logs = ""
     
     print("\nEvaluator Output:")
     print(logs)
     
     if "Result: konosuba" in logs:
         print("\nPASS: Correctly identified Konosuba sentence!")
-        clear_xcom_history(wf_id)
+        #clear_xcom_history(wf_id)
         return True
     else:
         print("\nWARNING: Unexpected result or prediction. Check logs.")
