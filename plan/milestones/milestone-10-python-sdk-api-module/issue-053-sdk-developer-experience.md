@@ -7,10 +7,10 @@ Enhance the developer experience by providing command-line tools for workflow ma
 ## Requirements
 
 1.  Add a CLI entry point `fernos` using `click` or `argparse`.
-2.  Command `fernos run <file.py>` to submit a workflow from a file.
+2.  Command `fernos deploy <dag_file.py>` to bundle scripts and submit the DAG to the manager.
 3.  Command `fernos status <workflow_id>` to check progress.
 4.  Command `fernos logs <job_id>` that uses the new raw text log endpoint.
-5.  Add project templates for quick start.
+5.  Add support for `--host` argument to target different manager environments.
 
 ## Technical Details
 

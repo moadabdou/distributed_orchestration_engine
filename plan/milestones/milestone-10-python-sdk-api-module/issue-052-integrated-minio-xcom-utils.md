@@ -6,18 +6,19 @@ Simplify the usage of shared storage (MinIO) and inter-job communication (XCom) 
 
 ## Requirements
 
-1.  Implement an `XComClient` that supports the `get_xcom(job_id=...)` function.
-2.  Implement automatic XCom push: task return values (specifically dictionaries) should be captured and pushed to the backend via stdout intercept or explicit manager call.
-3.  Support serializing/deserializing Python objects (pickle or json) automatically for XComs.
-4.  Provide a `MinioClient` wrapper for easy storage interaction within task functions.
+1.  Create a dedicated `fernos.worker.xcom` module for use within job scripts.
+2.  Implement `xcom.push(data)`: serializes the data (JSON) and writes it to a designated stdout channel or pipe for the Java worker to capture.
+3.  Implement `xcom.pull(upstream_label)`: blocks on stdin until the Java worker provides the XCom data from the specified upstream job.
+4.  Abstract the complex handshake (stdin/stdout) away from the user.
 
 ## Technical Details
 
-- Location: `python-sdk/fernos_sdk/context.py` and `python-sdk/fernos_sdk/storage.py`.
-- Ensure compatibility with Java-side XCom implementation.
+- Location: `python-sdk/fernos_sdk/worker/xcom.py`.
+- Use JSON as the primary serialization format for cross-language compatibility.
+- The `pull` operation should support timeouts and error handling if the channel is closed.
 
 ## Acceptance Criteria
 
-- [ ] Task code can pass data simply by `return {"key": value}`
-- [ ] Data is pulled from upstream using `get_xcom(job_id="upstream_job")`
-- [ ] MinIO client is easily accessible within the task body
+- [ ] Script code can pass data using `xcom.push({...})`
+- [ ] Script code can pull data from upstream using `xcom.pull("label")`
+- [ ] Handshake is robust and works across different OS environments (Linux/Docker)

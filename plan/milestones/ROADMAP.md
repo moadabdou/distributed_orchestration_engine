@@ -17,7 +17,7 @@
 | **7** | [Testing & Production Hardening](milestone-7-testing-hardening/details.md) | #033–#037 (5) | 4–5 days | M1–M6 |
 | **8** | [Advanced Control Plane](milestone-8-advanced-control-plane/details.md) | #038–#041 (4) | 5–7 days | M1–M7 |
 | **9** | [Pluggable Executors & Advanced Job Types](milestone-9-pluggable-executors-advanced-job-types/details.md) | #042–#048 (7) | 6–8 days | M1–M8 |
-| **10** | [Python SDK & API Module](milestone-10-python-sdk-api-module/details.md) | #049–#053 (5) | 5–7 days | M1–M9 |
+| **10** | [Python SDK & API Module](milestone-10-python-sdk-api-module/details.md) | #049–#054 (6) | 6–8 days | M1–M9 |
 
 ---
 
@@ -136,3 +136,4 @@ graph LR
 | [#051](milestone-10-python-sdk-api-module/issue-051-python-execution-client.md) | Python SDK Workflow Execution Client | 🔴 High | 1d |
 | [#052](milestone-10-python-sdk-api-module/issue-052-integrated-minio-xcom-utils.md) | Integrated MinIO & XCom Utilities | 🔴 High | 1d |
 | [#053](milestone-10-python-sdk-api-module/issue-053-sdk-developer-experience.md) | Python SDK CLI & Developer Tooling | 🟡 Medium | 1d |
+| [#054](milestone-10-python-sdk-api-module/issue-054-script-preprocessor-module-injection.md) | Script Preprocessor & Module Injection | 🔴 High | 1d |
