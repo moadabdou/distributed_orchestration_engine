@@ -36,17 +36,21 @@ public class WorkflowService {
     private final WorkflowManager workflowManager;
     private final WorkflowRepository workflowRepository;
     private final JobRepository jobRepository;
+    private final com.doe.manager.workflow.XComService xComService;
 
     public WorkflowService(
             WorkflowManager workflowManager,
             WorkflowRepository workflowRepository,
-            JobRepository jobRepository) {
+            JobRepository jobRepository,
+            com.doe.manager.workflow.XComService xComService) {
         this.workflowManager = workflowManager;
         this.workflowRepository = workflowRepository;
         this.jobRepository = jobRepository;
+        this.xComService = xComService;
     }
 
     // ── Create ───────────────────────────────────────────────────────────────
+
 
     @Transactional
     public WorkflowResponse createWorkflow(CreateWorkflowRequest req) {
@@ -61,7 +65,7 @@ public class WorkflowService {
         for (CreateWorkflowRequest.JobDefinition def : jobDefs) {
             Job job = Job.newJob(def.payload())
                     .workflowId(workflowId)
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 60000L)
+                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 600000L)
                     .retryCount(def.retryCount() != null ? def.retryCount() : 0)
                     .build();
             labelToJob.put(def.label(), job);
@@ -164,7 +168,36 @@ public class WorkflowService {
         workflowManager.deleteWorkflow(id);
     }
 
+    // ── XCom ─────────────────────────────────────────────────────────────────
+
+    @Transactional
+    public void clearXComHistory(UUID id) {
+        // 1. Check if workflow is in memory
+        Workflow w = workflowManager.getWorkflow(id);
+        WorkflowStatus status;
+
+        if (w != null) {
+            status = w.getStatus();
+        } else {
+            // 2. Fall back to DB
+            WorkflowEntity entity = workflowRepository.findById(id)
+                    .orElseThrow(() -> new WorkflowException(WorkflowErrorCode.WORKFLOW_NOT_FOUND,
+                            "Workflow not found: " + id));
+            status = entity.getStatus();
+        }
+
+        // 3. Refuse if RUNNING
+        if (status == WorkflowStatus.RUNNING) {
+            throw new WorkflowException(WorkflowErrorCode.WORKFLOW_RUNNING,
+                    "Cannot clear XCom history while the workflow is RUNNING. Pause or stop it first.");
+        }
+
+        // 4. Delegate to XComService
+        xComService.deleteXComsByWorkflowId(id);
+    }
+
     // ── Lifecycle controls ───────────────────────────────────────────────────
+
 
     @Transactional
     public WorkflowResponse executeWorkflow(UUID id) {
@@ -256,7 +289,7 @@ public class WorkflowService {
         for (CreateWorkflowRequest.JobDefinition def : req.jobs()) {
             Job job = Job.newJob(def.payload())
                     .workflowId(workflowId)
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 60000L)
+                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 600000L)
                     .retryCount(def.retryCount() != null ? def.retryCount() : 0)
                     .build();
             labelToJob.put(def.label(), job);

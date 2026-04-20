@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ShellScriptPlugin implements TaskExecutor {
 
     private static final Gson GSON = new Gson();
-    private static final long DEFAULT_TIMEOUT_MS = 30_000;
+    private static final long DEFAULT_TIMEOUT_MS = 300_000; // 5 minutes
 
     private final AtomicReference<Process> activeProcess = new AtomicReference<>();
 
@@ -33,6 +33,17 @@ public class ShellScriptPlugin implements TaskExecutor {
         }
 
         String script = json.get("script").getAsString();
+        // Automatically prepend set -e and set -o pipefail to ensure script fails fast on any error
+        if (!script.trim().startsWith("#!")) {
+            script = "set -e\nset -o pipefail\n" + script;
+        } else {
+            // If it has a shebang, we should be careful, but for bash -c we can still inject it after the first line
+            String[] lines = script.split("\n", 2);
+            if (lines.length > 1) {
+                script = lines[0] + "\nset -e\nset -o pipefail\n" + lines[1];
+            }
+        }
+
         long timeoutMs = json.has("timeoutMs")
                 ? json.get("timeoutMs").getAsLong()
                 : DEFAULT_TIMEOUT_MS;
@@ -48,7 +59,12 @@ public class ShellScriptPlugin implements TaskExecutor {
         pb.environment().putAll(context.getEnvVars());
         pb.environment().putAll(context.getSecrets());
 
-        context.log("Starting bash script: " + (script.length() > 50 ? script.substring(0, 47) + "..." : script));
+        // Create a temporary workspace for the job
+        java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("job-" + definition.jobId() + "-");
+        pb.directory(workspace.toFile());
+
+        context.log("Starting bash script in workspace: " + workspace);
+        context.log("Script preview: " + (script.length() > 50 ? script.substring(0, 47) + "..." : script));
         
         long startTime = System.currentTimeMillis();
         Process process = pb.start();
@@ -76,6 +92,14 @@ public class ShellScriptPlugin implements TaskExecutor {
         } finally {
             process.destroy();
             activeProcess.set(null);
+            // Cleanup workspace
+            try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(workspace)) {
+                walk.sorted(java.util.Comparator.reverseOrder())
+                    .map(java.nio.file.Path::toFile)
+                    .forEach(java.io.File::delete);
+            } catch (java.io.IOException e) {
+                context.log("WARN: Failed to cleanup workspace " + workspace + ": " + e.getMessage());
+            }
         }
     }
 

@@ -16,4 +16,15 @@ public interface XComRepository extends JpaRepository<XComEntity, UUID> {
      * although typically keys should be unique or per-job.
      */
     Optional<XComEntity> findFirstByWorkflowIdAndKeyOrderByCreatedAtDesc(UUID workflowId, String key);
+
+    /**
+     * Finds all XComs for a specific workflow ID.
+     */
+    java.util.List<XComEntity> findByWorkflowId(UUID workflowId);
+
+    /**
+     * Deletes all XComs for a specific workflow ID.
+     */
+    void deleteByWorkflowId(UUID workflowId);
 }
+

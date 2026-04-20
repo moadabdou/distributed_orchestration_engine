@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class PythonTaskExecutor implements TaskExecutor {
 
     private static final Gson GSON = new Gson();
-    private static final long DEFAULT_TIMEOUT_MS = 60_000;
+    private static final long DEFAULT_TIMEOUT_MS = 600_000; // 10 minutes
 
     private final AtomicReference<Process> activeProcess = new AtomicReference<>();
 
@@ -54,7 +54,12 @@ public class PythonTaskExecutor implements TaskExecutor {
 
         long timeoutMs = json.has("timeoutMs") ? json.get("timeoutMs").getAsLong() : DEFAULT_TIMEOUT_MS;
 
-        context.log("Executing Python command: " + String.join(" ", command));
+        // Create a temporary workspace for the job
+        java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("job-py-" + definition.jobId() + "-");
+        pb.directory(workspace.toFile());
+
+        context.log("Executing Python in workspace: " + workspace);
+        context.log("Command: " + String.join(" ", command));
         
         long startTime = System.currentTimeMillis();
         Process process = pb.start();
@@ -80,6 +85,14 @@ public class PythonTaskExecutor implements TaskExecutor {
         } finally {
             process.destroy();
             activeProcess.set(null);
+            // Cleanup workspace
+            try (java.util.stream.Stream<java.nio.file.Path> walk = java.nio.file.Files.walk(workspace)) {
+                walk.sorted(java.util.Comparator.reverseOrder())
+                    .map(java.nio.file.Path::toFile)
+                    .forEach(java.io.File::delete);
+            } catch (java.io.IOException e) {
+                context.log("WARN: Failed to cleanup workspace " + workspace + ": " + e.getMessage());
+            }
         }
     }
 

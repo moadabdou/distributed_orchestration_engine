@@ -4,6 +4,7 @@ import com.doe.core.executor.ExecutionContext;
 import com.doe.core.executor.XComClient;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonElement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -81,7 +82,8 @@ public class SubprocessBridge {
             LOG.info("SubprocessBridge: Handling XCom command '{}' for key '{}', job {}", command, key, jobId);
 
             if ("push".equalsIgnoreCase(command)) {
-                String value = json.has("value") ? json.get("value").getAsString() : "";
+                JsonElement valElement = json.get("value");
+                String value = valElement != null ? (valElement.isJsonPrimitive() ? valElement.getAsString() : GSON.toJson(valElement)) : "";
                 String type = json.has("type") ? json.get("type").getAsString() : "message";
                 xComClient.push(key, value, type);
                 LOG.info("SubprocessBridge: XCom push completed, sending ACK to job {}", jobId);

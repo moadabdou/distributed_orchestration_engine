@@ -63,7 +63,15 @@ public class WorkflowController {
         workflowService.deleteWorkflow(id);
     }
 
+    /** DELETE /workflows/{id}/xcom — Clear XCom history */
+    @DeleteMapping("/{id}/xcom")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearXComHistory(@PathVariable("id") UUID id) {
+        workflowService.clearXComHistory(id);
+    }
+
     // ── Lifecycle controls ───────────────────────────────────────────────────
+
 
     /** POST /workflows/{id}/execute — Start execution (DRAFT → RUNNING) */
     @PostMapping("/{id}/execute")

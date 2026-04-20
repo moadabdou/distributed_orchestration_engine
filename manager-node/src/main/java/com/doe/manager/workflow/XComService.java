@@ -29,6 +29,7 @@ public class XComService {
     private final XComRepository xComRepository;
     private final WorkflowRepository workflowRepository;
     private final JobRepository jobRepository;
+    private final MinioService minioService;
 
     /**
      * Cache structure: workflowId -> (xcomKey -> xcomValue)
@@ -39,11 +40,52 @@ public class XComService {
 
     public XComService(XComRepository xComRepository, 
                       WorkflowRepository workflowRepository, 
-                      JobRepository jobRepository) {
+                      JobRepository jobRepository,
+                      MinioService minioService) {
         this.xComRepository = xComRepository;
         this.workflowRepository = workflowRepository;
         this.jobRepository = jobRepository;
+        this.minioService = minioService;
     }
+
+    /**
+     * Deletes all XComs for a given workflow, including following and deleting MinIO references.
+     */
+    @Transactional
+    public void deleteXComsByWorkflowId(UUID workflowId) {
+        LOG.info("Cleaning XCom history for workflow: {}", workflowId);
+
+        // 1. Find all XComs to check for MinIO references
+        java.util.List<XComEntity> entities = xComRepository.findByWorkflowId(workflowId);
+
+        for (XComEntity entity : entities) {
+            String type = entity.getType();
+            String value = entity.getValue();
+
+            // Check if it's a MinIO reference
+            // Heuristic: type is "minio" or value starts with "minio://" or key ends with "_path"/"_data"
+            // For now, let's be safe and check type="minio" or value starts with "minio://"
+            // Given the user request, we should be proactive.
+            if ("minio".equalsIgnoreCase(type) || (value != null && value.startsWith("minio://"))) {
+                String path = value;
+                if (value.startsWith("minio://")) {
+                    path = value.substring(8); // strip minio://
+                    if (path.contains("/")) {
+                        path = path.substring(path.indexOf("/") + 1); // strip bucket name
+                    }
+                }
+                minioService.deleteObject(path);
+            }
+        }
+
+        // 2. Clear cache
+        clearCache(workflowId);
+
+        // 3. Delete from DB
+        xComRepository.deleteByWorkflowId(workflowId);
+        LOG.info("XCom history cleaned for workflow: {}", workflowId);
+    }
+
 
     @Transactional
     public void push(UUID workflowId, UUID jobId, String key, String value, String type) {

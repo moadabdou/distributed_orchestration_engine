@@ -87,3 +87,16 @@ def get_job_logs(job_id):
     except Exception as e:
         print(f"  [ERR] Get job logs {job_id} | {e}")
         return ""
+
+def clear_xcom_history(workflow_id):
+    req = urllib.request.Request(
+        f"http://localhost:8080/api/v1/workflows/{workflow_id}/xcom",
+        method="DELETE"
+    )
+    try:
+        with urllib.request.urlopen(req) as response:
+            print(f"  [OK] Clear XCom history for workflow {workflow_id} | HTTP {response.status}")
+            return True
+    except Exception as e:
+        print(f"  [ERR] Clear XCom history for workflow {workflow_id} | {e}")
+        return False

@@ -243,4 +243,14 @@ class WorkflowControllerTest {
                 .andExpect(jsonPath("$.edges[0].sourceJobId").value(jobA.toString()))
                 .andExpect(jsonPath("$.edges[0].targetJobId").value(jobB.toString()));
     }
+    // ── DELETE /api/v1/workflows/{id}/xcom ──────────────────────────────────
+    @Test
+    void clearXComHistory_Returns204() throws Exception {
+        UUID id = UUID.randomUUID();
+        Mockito.doNothing().when(workflowService).clearXComHistory(id);
+
+        mockMvc.perform(delete("/api/v1/workflows/{id}/xcom", id))
+                .andExpect(status().isNoContent());
+    }
 }
+

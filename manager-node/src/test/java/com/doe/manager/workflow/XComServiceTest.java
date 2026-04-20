@@ -22,6 +22,7 @@ class XComServiceTest {
     private XComRepository xComRepository;
     private WorkflowRepository workflowRepository;
     private JobRepository jobRepository;
+    private MinioService minioService;
     private XComService service;
 
     @BeforeEach
@@ -29,8 +30,10 @@ class XComServiceTest {
         xComRepository = mock(XComRepository.class);
         workflowRepository = mock(WorkflowRepository.class);
         jobRepository = mock(JobRepository.class);
-        service = new XComService(xComRepository, workflowRepository, jobRepository);
+        minioService = mock(MinioService.class);
+        service = new XComService(xComRepository, workflowRepository, jobRepository, minioService);
     }
+
 
     @Test
     void testPushAndPullFromCache() {
@@ -92,4 +95,35 @@ class XComServiceTest {
 
         assertTrue(service.pull(workflowId, "none").isEmpty());
     }
+
+    @Test
+    void testDeleteXComsByWorkflowId() {
+        UUID workflowId = UUID.randomUUID();
+        
+        XComEntity e1 = mock(XComEntity.class);
+        when(e1.getType()).thenReturn("message");
+        when(e1.getValue()).thenReturn("plain string");
+        
+        XComEntity e2 = mock(XComEntity.class);
+        when(e2.getType()).thenReturn("minio");
+        when(e2.getValue()).thenReturn("path/to/obj.txt");
+        
+        XComEntity e3 = mock(XComEntity.class);
+        when(e3.getType()).thenReturn("message");
+        when(e3.getValue()).thenReturn("proc/data.npy");
+        when(e3.getKey()).thenReturn("results_path");
+
+        when(xComRepository.findByWorkflowId(workflowId)).thenReturn(java.util.List.of(e1, e2, e3));
+
+        service.deleteXComsByWorkflowId(workflowId);
+
+        // Verify MinIO deletions
+        verify(minioService).deleteObject("path/to/obj.txt");
+        verify(minioService).deleteObject("proc/data.npy");
+        verify(minioService, times(2)).deleteObject(anyString());
+
+        // Verify DB deletion
+        verify(xComRepository).deleteByWorkflowId(workflowId);
+    }
 }
+

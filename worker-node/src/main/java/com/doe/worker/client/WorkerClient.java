@@ -317,7 +317,7 @@ public class WorkerClient {
         payloadObj.remove("type");
         String cleanedPayload = GSON.toJson(payloadObj);
 
-        long timeoutMs = envelope.has("timeoutMs") ? envelope.get("timeoutMs").getAsLong() : 60000;
+        long timeoutMs = envelope.has("timeoutMs") ? envelope.get("timeoutMs").getAsLong() : 600000;
 
         LOG.info("Worker {}: received ASSIGN_JOB — jobId={}, type={}, timeoutMs={}", workerId, jobIdStr, type, timeoutMs);
 
