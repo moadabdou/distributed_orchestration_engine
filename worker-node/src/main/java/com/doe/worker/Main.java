@@ -63,8 +63,9 @@ public class Main {
         }
 
         int readTimeoutMs = parseTimeout(args, System.getenv("WORKER_READ_TIMEOUT_MS"));
+        int heartbeatIntervalMs = parseHeartbeatInterval(args, System.getenv("WORKER_HEARTBEAT_INTERVAL_MS"));
 
-        WorkerClient client = new WorkerClient(host, port, 5000, readTimeoutMs, authToken);
+        WorkerClient client = new WorkerClient(host, port, heartbeatIntervalMs, readTimeoutMs, authToken);
 
         // Graceful shutdown on SIGINT / SIGTERM
         Runtime.getRuntime().addShutdownHook(Thread.ofVirtual()
@@ -172,7 +173,36 @@ public class Main {
                 LOG.error("Invalid WORKER_READ_TIMEOUT_MS env value: {}", envFallback);
             }
         }
-        return 1_200_000; // 20 minutes default
+        return WorkerClient.DEFAULT_READ_TIMEOUT_MS;
+    }
+
+    /**
+     * Parses the {@code --heartbeat-interval <N>} argument from CLI args.
+     * Falls back to environment variable, then to 5000 milliseconds.
+     *
+     * @param args        CLI argument array
+     * @param envFallback environment variable value to try if flag is absent (may be null)
+     * @return the heartbeat interval in milliseconds
+     */
+    static int parseHeartbeatInterval(String[] args, String envFallback) {
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--heartbeat-interval".equals(args[i])) {
+                try {
+                    return Integer.parseInt(args[i + 1]);
+                } catch (NumberFormatException e) {
+                    LOG.error("Invalid heartbeat interval value: {}", args[i + 1]);
+                    System.exit(1);
+                }
+            }
+        }
+        if (envFallback != null && !envFallback.isBlank()) {
+            try {
+                return Integer.parseInt(envFallback);
+            } catch (NumberFormatException e) {
+                LOG.error("Invalid WORKER_HEARTBEAT_INTERVAL_MS env value: {}", envFallback);
+            }
+        }
+        return (int) WorkerClient.DEFAULT_HEARTBEAT_INTERVAL_MS;
     }
 }
 

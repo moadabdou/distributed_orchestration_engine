@@ -62,6 +62,9 @@ public class WorkerClient {
     private static final Logger LOG = LoggerFactory.getLogger(WorkerClient.class);
     private static final Gson GSON = new Gson();
 
+    public static final long DEFAULT_HEARTBEAT_INTERVAL_MS = 5000L;
+    public static final int DEFAULT_READ_TIMEOUT_MS = 1_200_000;
+
     /** Backoff: 1 s → 2 s → 4 s … capped at 30 s, unlimited attempts. */
     private static final RetryPolicy RETRY_POLICY =
             new RetryPolicy(1_000, 30_000, Integer.MAX_VALUE);
@@ -87,24 +90,24 @@ public class WorkerClient {
     private volatile BlockingQueue<OutboundMessage> currentEgressQueue;
 
     /**
-     * Creates a new WorkerClient with default heartbeat interval (5000ms).
+     * Creates a new WorkerClient with default heartbeat interval (5000ms) and default read timeout (1200000ms).
      *
      * @param host the manager hostname or IP address
      * @param port the manager TCP port
      */
     public WorkerClient(String host, int port) {
-        this(host, port, 5000, 10000, null, defaultRegistry());
+        this(host, port, DEFAULT_HEARTBEAT_INTERVAL_MS, DEFAULT_READ_TIMEOUT_MS, null, defaultRegistry());
     }
 
     /**
-     * Creates a new WorkerClient.
+     * Creates a new WorkerClient with default read timeout (1200000ms).
      *
      * @param host                the manager hostname or IP address
      * @param port                the manager TCP port
      * @param heartbeatIntervalMs heartbeat interval in milliseconds
      */
     public WorkerClient(String host, int port, long heartbeatIntervalMs) {
-        this(host, port, heartbeatIntervalMs, 10000, null, defaultRegistry());
+        this(host, port, heartbeatIntervalMs, DEFAULT_READ_TIMEOUT_MS, null, defaultRegistry());
     }
 
     /**

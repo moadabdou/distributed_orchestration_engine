@@ -220,8 +220,33 @@ public class WorkflowService {
         return toResponse(workflowManager.resumeWorkflow(id));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private com.doe.manager.server.ManagerServer managerServer;
+
     @Transactional
     public WorkflowResponse resetWorkflow(UUID id) {
+        Workflow workflow = workflowManager.getWorkflow(id);
+        if (workflow != null) {
+            for (WorkflowJob wj : workflow.getJobs()) {
+                Job job = wj.getJob();
+                if (job.getStatus() == JobStatus.RUNNING || job.getStatus() == JobStatus.ASSIGNED) {
+                    if (managerServer != null) {
+                        managerServer.getJobRegistry().get(job.getId()).ifPresent(regJob -> {
+                            UUID workerId = regJob.getAssignedWorkerId();
+                            if (workerId != null) {
+                                managerServer.sendCancelJob(workerId, job.getId());
+                            }
+                        });
+                        // Fallback check
+                        JobEntity entity = jobRepository.findById(job.getId()).orElse(null);
+                        if (entity != null && entity.getWorkerId() != null) {
+                            managerServer.sendCancelJob(entity.getWorkerId(), job.getId());
+                        }
+                    }
+                }
+            }
+        }
         return toResponse(workflowManager.resetWorkflow(id));
     }
 

@@ -7,5 +7,6 @@ doe:
       secret-key: ${MINIO_SECRET_KEY:password123}
       bucket: ${MINIO_BUCKET:fernos-storage}
   worker:
-    read-timeout-ms: ${WORKER_READ_TIMEOUT_MS:1200000}
+    heartbeat-interval-ms: ${WORKER_HEARTBEAT_INTERVAL_MS:5000}
+    read-timeout-ms: ${WORKER_READ_TIMEOUT_MS:1200000} # 20 minutes, to accommodate long-running tasks
 

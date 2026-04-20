@@ -66,7 +66,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-password123}
       MINIO_BUCKET: ${MINIO_BUCKET:-fernos-storage}
     deploy:
-      replicas: 1
+      replicas: 4
     networks:
       - fernos-net
 
