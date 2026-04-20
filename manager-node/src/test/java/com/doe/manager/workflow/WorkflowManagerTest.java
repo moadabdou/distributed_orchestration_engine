@@ -47,7 +47,7 @@ class WorkflowManagerTest {
     }
 
     private WorkflowJob makeWorkflowJob(String payload, List<UUID> dependencies) {
-        Job job = Job.newJob(payload).build();
+        Job job = Job.newJob(payload).timeoutMs(60000L).build();
         return WorkflowJob.fromJob(job)
                 .dagIndex(0)
                 .dependencies(dependencies)
@@ -84,7 +84,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow rejects workflow with self-dependency")
     void registerWorkflow_selfDependency_throws() {
-        Job job = Job.newJob("self").build();
+        Job job = Job.newJob("self").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job)
                 .dagIndex(0)
                 .dependencies(List.of(job.getId()))
@@ -97,8 +97,8 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow rejects workflow with missing dependency")
     void registerWorkflow_missingDependency_throws() {
-        Job jobA = Job.newJob("a").build();
-        Job jobB = Job.newJob("b").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB).dagIndex(1).dependencies(List.of(jobA.getId(), UUID.randomUUID())).build();
         Workflow workflow = createWorkflow("bad-dag", List.of(wjA, wjB));
@@ -109,8 +109,8 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow rejects workflow with cycle")
     void registerWorkflow_cycle_throws() {
-        Job jobA = Job.newJob("a").build();
-        Job jobB = Job.newJob("b").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of(jobB.getId())).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB).dagIndex(1).dependencies(List.of(jobA.getId())).build();
         Workflow workflow = createWorkflow("cyclic-dag", List.of(wjA, wjB));
@@ -121,9 +121,9 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow accepts valid DAG with multiple root nodes")
     void registerWorkflow_validMultiRoot() {
-        Job a = Job.newJob("a").build();
-        Job b = Job.newJob("b").build();
-        Job c = Job.newJob("c").build();
+        Job a = Job.newJob("a").timeoutMs(60000L).build();
+        Job b = Job.newJob("b").timeoutMs(60000L).build();
+        Job c = Job.newJob("c").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(a).dagIndex(0).dependencies(List.of()).build();
         WorkflowJob wjB = WorkflowJob.fromJob(b).dagIndex(1).dependencies(List.of()).build();
         WorkflowJob wjC = WorkflowJob.fromJob(c).dagIndex(2).dependencies(List.of(a.getId(), b.getId())).build();
@@ -753,7 +753,7 @@ class WorkflowManagerTest {
         IntStream.range(0, count).forEach(i -> {
             executor.execute(() -> {
                 try {
-                    Job job = Job.newJob("job-" + i).build();
+                    Job job = Job.newJob("job-" + i).timeoutMs(60000L).build();
                     WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
                     Workflow workflow = createWorkflow("wf-" + i, List.of(wj));
                     manager.registerWorkflow(workflow);

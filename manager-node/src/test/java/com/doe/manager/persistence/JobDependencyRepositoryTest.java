@@ -72,9 +72,9 @@ class JobDependencyRepositoryTest {
         WorkflowEntity workflow = new WorkflowEntity(workflowId, "dep-workflow", WorkflowStatus.DRAFT, now, now);
         workflow = workflowRepository.save(workflow);
 
-        JobEntity job1 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", now, now);
+        JobEntity job1 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", 60000L, now, now);
         job1.setWorkflow(workflow);
-        JobEntity job2 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", now, now);
+        JobEntity job2 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", 60000L, now, now);
         job2.setWorkflow(workflow);
 
         entityManager.persist(job1);
@@ -105,11 +105,11 @@ class JobDependencyRepositoryTest {
         WorkflowEntity workflow = new WorkflowEntity(workflowId, "dep-workflow-2", WorkflowStatus.DRAFT, now, now);
         workflow = workflowRepository.save(workflow);
 
-        JobEntity job1 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", now, now);
+        JobEntity job1 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", 60000L, now, now);
         job1.setWorkflow(workflow);
-        JobEntity job2 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", now, now);
+        JobEntity job2 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", 60000L, now, now);
         job2.setWorkflow(workflow);
-        JobEntity job3 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", now, now);
+        JobEntity job3 = new JobEntity(UUID.randomUUID(), JobStatus.PENDING, "{}", 60000L, now, now);
         job3.setWorkflow(workflow);
 
         entityManager.persist(job1);

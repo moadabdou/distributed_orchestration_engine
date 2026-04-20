@@ -350,7 +350,7 @@ class WorkflowStatusMachineTest {
     // ──── Helpers ───────────────────────────────────────────────────────────
 
     private com.doe.core.model.Workflow createSimpleWorkflow(WorkflowManager mgr) {
-        var j = com.doe.core.model.Job.newJob("test").build();
+        var j = com.doe.core.model.Job.newJob("test").timeoutMs(60000L).build();
         var wj = com.doe.core.model.WorkflowJob.fromJob(j)
                 .dagIndex(0)
                 .dependencies(List.of())

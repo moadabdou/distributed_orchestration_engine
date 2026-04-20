@@ -53,7 +53,6 @@ public class StartupRecoveryService {
     private static final Logger LOG = LoggerFactory.getLogger(StartupRecoveryService.class);
 
     /** Default job timeout used for reconstructed domain objects (not stored in DB). */
-    private static final long DEFAULT_TIMEOUT_MS = 60_000L;
 
     private final JobRepository jobRepository;
     private final WorkerRepository workerRepository;
@@ -103,7 +102,8 @@ public class StartupRecoveryService {
             Job job = Job.newJob(entity.getPayload())
                     .id(entity.getId())
                     .retryCount(entity.getRetryCount())
-                    .timeoutMs(DEFAULT_TIMEOUT_MS)
+                    .timeoutMs(entity.getTimeoutMs())
+                    .jobLabel(entity.getJobLabel())
                     .createdAt(entity.getCreatedAt())
                     .updatedAt(entity.getUpdatedAt())
                     .build();

@@ -67,6 +67,7 @@ class DagSchedulerTest {
         Job job = Job.newJob(payload)
                 .id(id)
                 .status(JobStatus.PENDING)
+                .timeoutMs(60000L)
                 .build();
         return WorkflowJob.fromJob(job)
                 .dagIndex(0)

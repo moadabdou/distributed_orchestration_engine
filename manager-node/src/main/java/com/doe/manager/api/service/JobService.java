@@ -37,19 +37,22 @@ public class JobService {
     private final MetricsService metricsService;
     private final WorkflowManager workflowManager;
     private final DagScheduler dagScheduler;
+    private final long defaultJobTimeoutMs;
 
     public JobService(JobRepository jobRepository, 
                       JobQueue jobQueue, 
                       ManagerServer managerServer, 
                       MetricsService metricsService,
                       WorkflowManager workflowManager,
-                      DagScheduler dagScheduler) {
+                      DagScheduler dagScheduler,
+                      @org.springframework.beans.factory.annotation.Value("${doe.workflow.default-job-timeout-ms:600000}") long defaultJobTimeoutMs) {
         this.jobRepository = jobRepository;
         this.jobQueue = jobQueue;
         this.managerServer = managerServer;
         this.metricsService = metricsService;
         this.workflowManager = workflowManager;
         this.dagScheduler = dagScheduler;
+        this.defaultJobTimeoutMs = defaultJobTimeoutMs;
     }
 
     @Transactional
@@ -57,14 +60,21 @@ public class JobService {
         if (request.payload() == null || request.payload().isBlank()) {
             throw new IllegalArgumentException("Job payload must not be empty");
         }
+        
+        long timeoutMs = request.timeoutMs() != null ? request.timeoutMs() : defaultJobTimeoutMs;
 
         // Domain object creates ID, sets status to PENDING and timestamps
-        Job job = Job.newJob(request.payload()).build();
+        Job job = Job.newJob(request.payload())
+                .timeoutMs(timeoutMs)
+                .jobLabel(request.label())
+                .build();
 
         JobEntity entity = new JobEntity(
                 job.getId(),
                 job.getStatus(),
                 job.getPayload(),
+                job.getTimeoutMs(),
+                job.getJobLabel(),
                 job.getCreatedAt(),
                 job.getUpdatedAt()
         );
@@ -218,6 +228,8 @@ public class JobService {
                     .id(entity.getId())
                     .workflowId(entity.getWorkflow() != null ? entity.getWorkflow().getId() : null)
                     .status(JobStatus.PENDING)
+                    .timeoutMs(entity.getTimeoutMs())
+                    .jobLabel(entity.getJobLabel())
                     .build();
             jobQueue.enqueue(job);
         }

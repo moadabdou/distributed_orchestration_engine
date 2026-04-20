@@ -76,8 +76,8 @@ class WorkflowPersistenceListenerTest {
     @Test
     void shouldPersistWorkflowAndDependenciesOnRegister() {
         // Arrange
-        Job job1 = Job.newJob("{}").build();
-        Job job2 = Job.newJob("{}").build();
+        Job job1 = Job.newJob("{}").timeoutMs(60000L).build();
+        Job job2 = Job.newJob("{}").timeoutMs(60000L).build();
 
         WorkflowJob wj1 = WorkflowJob.fromJob(job1).dagIndex(0).build();
         WorkflowJob wj2 = WorkflowJob.fromJob(job2).dagIndex(1).dependencies(List.of(job1.getId())).build();
@@ -103,7 +103,9 @@ class WorkflowPersistenceListenerTest {
     @Test
     void shouldUpdateWorkflowStatusOnExecution() {
         // Arrange
-        Workflow wf = Workflow.newWorkflow("test-wf").build();
+        Workflow wf = Workflow.newWorkflow("test-wf")
+                .addJob(WorkflowJob.fromJob(Job.newJob("{}").timeoutMs(60000L).build()).dagIndex(0).build())
+                .build();
         workflowManager.registerWorkflow(wf);
         
         // Act

@@ -56,6 +56,12 @@ public class JobEntity {
     @Column(name = "retry_count", nullable = false)
     private int retryCount = 0;
 
+    @Column(name = "timeout_ms", nullable = false)
+    private long timeoutMs;
+
+    @Column(name = "job_label")
+    private String jobLabel;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -65,10 +71,12 @@ public class JobEntity {
     /** Required by JPA. */
     protected JobEntity() {}
 
-    public JobEntity(UUID id, JobStatus status, String payload, Instant createdAt, Instant updatedAt) {
+    public JobEntity(UUID id, JobStatus status, String payload, long timeoutMs, String jobLabel, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.status = status;
         this.payload = payload;
+        this.timeoutMs = timeoutMs;
+        this.jobLabel = jobLabel;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -83,6 +91,8 @@ public class JobEntity {
     public String getPayload()    { return payload; }
     public String getResult()     { return result; }
     public int getRetryCount()    { return retryCount; }
+    public long getTimeoutMs()    { return timeoutMs; }
+    public String getJobLabel()   { return jobLabel; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
@@ -92,5 +102,7 @@ public class JobEntity {
     public void setDagIndex(Integer dagIndex) { this.dagIndex = dagIndex; }
     public void setResult(String result)      { this.result = result; }
     public void setRetryCount(int count)      { this.retryCount = count; }
+    public void setTimeoutMs(long timeoutMs)  { this.timeoutMs = timeoutMs; }
+    public void setJobLabel(String jobLabel)  { this.jobLabel = jobLabel; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

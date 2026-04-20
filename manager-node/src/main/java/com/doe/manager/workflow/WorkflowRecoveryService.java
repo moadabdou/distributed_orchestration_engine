@@ -104,7 +104,8 @@ public class WorkflowRecoveryService {
                          .id(je.getId())
                          .workflowId(we.getId())
                          .status(je.getStatus())
-                         .timeoutMs(60000)
+                         .timeoutMs(je.getTimeoutMs())
+                         .jobLabel(je.getJobLabel())
                          .createdAt(je.getCreatedAt())
                          .updatedAt(je.getUpdatedAt())
                          .build();

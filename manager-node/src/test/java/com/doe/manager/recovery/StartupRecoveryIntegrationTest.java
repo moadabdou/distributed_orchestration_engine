@@ -60,7 +60,7 @@ class StartupRecoveryIntegrationTest {
 
     private JobEntity saveJob(UUID workerId, JobStatus status) {
         JobEntity e = new JobEntity(
-                UUID.randomUUID(), status, "{\"type\":\"test\"}", Instant.now(), Instant.now());
+                UUID.randomUUID(), status, "{\"type\":\"test\"}", 60000L, Instant.now(), Instant.now());
         e.setWorkerId(workerId);
         return jobRepository.save(e);
     }

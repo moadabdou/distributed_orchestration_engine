@@ -37,16 +37,19 @@ public class WorkflowService {
     private final WorkflowRepository workflowRepository;
     private final JobRepository jobRepository;
     private final com.doe.manager.workflow.XComService xComService;
+    private final long defaultJobTimeoutMs;
 
     public WorkflowService(
             WorkflowManager workflowManager,
             WorkflowRepository workflowRepository,
             JobRepository jobRepository,
-            com.doe.manager.workflow.XComService xComService) {
+            com.doe.manager.workflow.XComService xComService,
+            @org.springframework.beans.factory.annotation.Value("${doe.workflow.default-job-timeout-ms:600000}") long defaultJobTimeoutMs) {
         this.workflowManager = workflowManager;
         this.workflowRepository = workflowRepository;
         this.jobRepository = jobRepository;
         this.xComService = xComService;
+        this.defaultJobTimeoutMs = defaultJobTimeoutMs;
     }
 
     // ── Create ───────────────────────────────────────────────────────────────
@@ -65,8 +68,9 @@ public class WorkflowService {
         for (CreateWorkflowRequest.JobDefinition def : jobDefs) {
             Job job = Job.newJob(def.payload())
                     .workflowId(workflowId)
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 600000L)
+                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : defaultJobTimeoutMs)
                     .retryCount(def.retryCount() != null ? def.retryCount() : 0)
+                    .jobLabel(def.label())
                     .build();
             labelToJob.put(def.label(), job);
         }
@@ -289,8 +293,9 @@ public class WorkflowService {
         for (CreateWorkflowRequest.JobDefinition def : req.jobs()) {
             Job job = Job.newJob(def.payload())
                     .workflowId(workflowId)
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 600000L)
+                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : defaultJobTimeoutMs)
                     .retryCount(def.retryCount() != null ? def.retryCount() : 0)
+                    .jobLabel(def.label())
                     .build();
             labelToJob.put(def.label(), job);
         }

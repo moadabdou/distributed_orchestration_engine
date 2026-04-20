@@ -157,9 +157,9 @@ class ManagerCrashRecoveryEndToEndTest {
         // Submit 10 sleep jobs (long enough that some will be RUNNING when we crash)
         List<Job> jobs = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            Job job = Job.newJob("{\"type\":\"sleep\",\"ms\":2000}").build();
+            Job job = Job.newJob("{\"type\":\"sleep\",\"ms\":2000}").timeoutMs(60000L).build();
             jobs.add(job);
-            JobEntity entity = new JobEntity(job.getId(), job.getStatus(), job.getPayload(), job.getCreatedAt(), job.getUpdatedAt());
+            JobEntity entity = new JobEntity(job.getId(), job.getStatus(), job.getPayload(), job.getTimeoutMs(), job.getCreatedAt(), job.getUpdatedAt());
             jobRepository.save(entity);
             jobQueue.enqueue(job);
         }

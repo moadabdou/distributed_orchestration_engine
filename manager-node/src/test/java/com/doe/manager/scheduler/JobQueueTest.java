@@ -20,7 +20,7 @@ class JobQueueTest {
     }
 
     private Job makeJob(String payload) {
-        return Job.newJob(payload).build();
+        return Job.newJob(payload).timeoutMs(60000L).build();
     }
 
     @Test

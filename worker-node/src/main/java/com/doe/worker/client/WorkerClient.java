@@ -317,7 +317,13 @@ public class WorkerClient {
         payloadObj.remove("type");
         String cleanedPayload = GSON.toJson(payloadObj);
 
-        long timeoutMs = envelope.has("timeoutMs") ? envelope.get("timeoutMs").getAsLong() : 600000;
+        if (!envelope.has("timeoutMs")) {
+            LOG.error("Worker {}: FATAL ERROR — job {} missing required 'timeoutMs' property. Refusing to process.", workerId, jobIdStr);
+            sendJobResult(jobIdStr, "FAILED", "Fatal error: missing required timeoutMs", java.util.Collections.singletonList("ERROR: Job was refused because timeoutMs was not provided by the manager."), workerId);
+            return;
+        }
+
+        long timeoutMs = envelope.get("timeoutMs").getAsLong();
 
         LOG.info("Worker {}: received ASSIGN_JOB — jobId={}, type={}, timeoutMs={}", workerId, jobIdStr, type, timeoutMs);
 

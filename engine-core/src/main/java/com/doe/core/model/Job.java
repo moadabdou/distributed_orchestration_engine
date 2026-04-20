@@ -20,8 +20,9 @@ public final class Job {
     private final String payload;        // JSON command / data
     private volatile String result;      // output from worker (nullable)
     private volatile UUID assignedWorkerId; // nullable
-    private volatile int retryCount = 0;
+    private final int retryCount;
     private final long timeoutMs;
+    private final String jobLabel; // nullable
     private final Instant createdAt;
     private volatile Instant updatedAt;
 
@@ -36,6 +37,7 @@ public final class Job {
         this.assignedWorkerId = builder.assignedWorkerId;
         this.retryCount       = builder.retryCount;
         this.timeoutMs        = builder.timeoutMs;
+        this.jobLabel         = builder.jobLabel;
         this.createdAt        = Objects.requireNonNull(builder.createdAt, "createdAt");
         this.updatedAt        = Objects.requireNonNull(builder.updatedAt, "updatedAt");
     }
@@ -53,7 +55,6 @@ public final class Job {
                 .id(UUID.randomUUID())
                 .status(JobStatus.PENDING)
                 .retryCount(0)
-                .timeoutMs(60000)
                 .payload(payload)
                 .createdAt(now)
                 .updatedAt(now);
@@ -89,6 +90,7 @@ public final class Job {
     public UUID getAssignedWorkerId(){ return assignedWorkerId; }
     public int getRetryCount()       { return retryCount; }
     public long getTimeoutMs()       { return timeoutMs; }
+    public String getJobLabel()      { return jobLabel; }
     public Instant getCreatedAt()    { return createdAt; }
     public Instant getUpdatedAt()    { return updatedAt; }
 
@@ -114,7 +116,8 @@ public final class Job {
         private String result;
         private UUID assignedWorkerId;
         private int retryCount = 0;
-        private long timeoutMs = 60000;
+        private long timeoutMs = -1; // -1 indicates not set
+        private String jobLabel;
         private Instant createdAt;
         private Instant updatedAt;
 
@@ -128,9 +131,15 @@ public final class Job {
         public Builder assignedWorkerId(UUID assignedWorkerId){ this.assignedWorkerId = assignedWorkerId; return this; }
         public Builder retryCount(int retryCount)             { this.retryCount = retryCount;         return this; }
         public Builder timeoutMs(long timeoutMs)              { this.timeoutMs = timeoutMs;           return this; }
+        public Builder jobLabel(String jobLabel)              { this.jobLabel = jobLabel;             return this; }
         public Builder createdAt(Instant createdAt)           { this.createdAt = createdAt;           return this; }
         public Builder updatedAt(Instant updatedAt)           { this.updatedAt = updatedAt;           return this; }
 
-        public Job build() { return new Job(this); }
+        public Job build() { 
+            if (timeoutMs <= 0) {
+                throw new IllegalStateException("Job timeoutMs must be positive (was: " + timeoutMs + ")");
+            }
+            return new Job(this); 
+        }
     }
 }

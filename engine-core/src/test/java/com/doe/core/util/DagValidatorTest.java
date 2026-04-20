@@ -19,7 +19,7 @@ class DagValidatorTest {
 
     /** Creates a WorkflowJob wrapping a fresh Job, with the given deps and index. */
     private static WorkflowJob makeJob(int index, List<UUID> dependencies) {
-        return WorkflowJob.fromJob(Job.newJob("{\"task\":\"node" + index + "\"}").build())
+        return WorkflowJob.fromJob(Job.newJob("{\"task\":\"node" + index + "\"}").timeoutMs(60000L).build())
                 .dagIndex(index)
                 .dependencies(dependencies)
                 .build();
@@ -108,7 +108,7 @@ class DagValidatorTest {
         void directSelfDependency() {
             WorkflowJob a = makeJob(0, List.of());
             // We need the job's own ID
-            Job job = Job.newJob("{\"task\":\"self\"}").build();
+            Job job = Job.newJob("{\"task\":\"self\"}").timeoutMs(60000L).build();
             WorkflowJob selfDep2 = WorkflowJob.fromJob(job)
                     .dagIndex(1)
                     .dependencies(List.of(job.getId()))
@@ -123,8 +123,8 @@ class DagValidatorTest {
         @Test
         @DisplayName("multiple self-dependencies are all reported")
         void multipleSelfDependencies() {
-            Job j1 = Job.newJob("{\"task\":\"a\"}").build();
-            Job j2 = Job.newJob("{\"task\":\"b\"}").build();
+            Job j1 = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
+            Job j2 = Job.newJob("{\"task\":\"b\"}").timeoutMs(60000L).build();
             WorkflowJob wj1 = WorkflowJob.fromJob(j1).dagIndex(0).dependencies(List.of(j1.getId())).build();
             WorkflowJob wj2 = WorkflowJob.fromJob(j2).dagIndex(1).dependencies(List.of(j2.getId())).build();
             Workflow wf = buildWorkflow("multi-self", wj1, wj2);
@@ -179,8 +179,8 @@ class DagValidatorTest {
         @Test
         @DisplayName("simple 2-node cycle: A → B → A")
         void twoNodeCycle() {
-            Job jA = Job.newJob("{\"task\":\"a\"}").build();
-            Job jB = Job.newJob("{\"task\":\"b\"}").build();
+            Job jA = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
+            Job jB = Job.newJob("{\"task\":\"b\"}").timeoutMs(60000L).build();
             WorkflowJob a = WorkflowJob.fromJob(jA).dagIndex(0).dependencies(List.of(jB.getId())).build();
             WorkflowJob b = WorkflowJob.fromJob(jB).dagIndex(1).dependencies(List.of(jA.getId())).build();
             Workflow wf = buildWorkflow("cycle-2", a, b);
@@ -193,9 +193,9 @@ class DagValidatorTest {
         @Test
         @DisplayName("3-node cycle: A → B → C → A")
         void threeNodeCycle() {
-            Job jA = Job.newJob("{\"task\":\"a\"}").build();
-            Job jB = Job.newJob("{\"task\":\"b\"}").build();
-            Job jC = Job.newJob("{\"task\":\"c\"}").build();
+            Job jA = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
+            Job jB = Job.newJob("{\"task\":\"b\"}").timeoutMs(60000L).build();
+            Job jC = Job.newJob("{\"task\":\"c\"}").timeoutMs(60000L).build();
             WorkflowJob a = WorkflowJob.fromJob(jA).dagIndex(0).dependencies(List.of(jC.getId())).build();
             WorkflowJob b = WorkflowJob.fromJob(jB).dagIndex(1).dependencies(List.of(jA.getId())).build();
             WorkflowJob c = WorkflowJob.fromJob(jC).dagIndex(2).dependencies(List.of(jB.getId())).build();
@@ -208,10 +208,10 @@ class DagValidatorTest {
         @Test
         @DisplayName("cycle within a larger DAG")
         void cycleInLargerDag() {
-            Job jA = Job.newJob("{\"task\":\"a\"}").build();
-            Job jB = Job.newJob("{\"task\":\"b\"}").build();
-            Job jC = Job.newJob("{\"task\":\"c\"}").build();
-            Job jD = Job.newJob("{\"task\":\"d\"}").build();
+            Job jA = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
+            Job jB = Job.newJob("{\"task\":\"b\"}").timeoutMs(60000L).build();
+            Job jC = Job.newJob("{\"task\":\"c\"}").timeoutMs(60000L).build();
+            Job jD = Job.newJob("{\"task\":\"d\"}").timeoutMs(60000L).build();
             // A depends on D , B depends on A, C depends on B, D depends on B 
             // A -> D -> B -> A (cycle), C -> B -> A -> D -> B (cycle)
 
@@ -228,10 +228,10 @@ class DagValidatorTest {
         @Test
         @DisplayName("diamond with a back-edge creates a cycle")
         void diamondWithBackEdge() {
-            Job jA = Job.newJob("{\"task\":\"a\"}").build();
-            Job jB = Job.newJob("{\"task\":\"b\"}").build();
-            Job jC = Job.newJob("{\"task\":\"c\"}").build();
-            Job jD = Job.newJob("{\"task\":\"d\"}").build();
+            Job jA = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
+            Job jB = Job.newJob("{\"task\":\"b\"}").timeoutMs(60000L).build();
+            Job jC = Job.newJob("{\"task\":\"c\"}").timeoutMs(60000L).build();
+            Job jD = Job.newJob("{\"task\":\"d\"}").timeoutMs(60000L).build();
             // A → B, A → C, B → D, C → D, D → A (cycle!)
             WorkflowJob a = WorkflowJob.fromJob(jA).dagIndex(0).dependencies(List.of(jD.getId())).build();
             WorkflowJob b = WorkflowJob.fromJob(jB).dagIndex(1).dependencies(List.of(jA.getId())).build();
@@ -253,8 +253,8 @@ class DagValidatorTest {
         @Test
         @DisplayName("workflow with both self-dep and missing dep reports both")
         void selfDepAndMissingDep() {
-            Job j1 = Job.newJob("{\"task\":\"a\"}").build();
-            Job j2 = Job.newJob("{\"task\":\"b\"}").build();
+            Job j1 = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
+            Job j2 = Job.newJob("{\"task\":\"b\"}").timeoutMs(60000L).build();
             UUID ghost = UUID.randomUUID();
             WorkflowJob wj1 = WorkflowJob.fromJob(j1).dagIndex(0).dependencies(List.of(j1.getId())).build();
             WorkflowJob wj2 = WorkflowJob.fromJob(j2).dagIndex(1).dependencies(List.of(ghost)).build();
@@ -268,7 +268,7 @@ class DagValidatorTest {
         @Test
         @DisplayName("error messages are descriptive")
         void errorMessagesAreDescriptive() {
-            Job j1 = Job.newJob("{\"task\":\"a\"}").build();
+            Job j1 = Job.newJob("{\"task\":\"a\"}").timeoutMs(60000L).build();
             WorkflowJob wj1 = WorkflowJob.fromJob(j1).dagIndex(0).dependencies(List.of(j1.getId())).build();
             Workflow wf = buildWorkflow("msg-test", wj1);
 
