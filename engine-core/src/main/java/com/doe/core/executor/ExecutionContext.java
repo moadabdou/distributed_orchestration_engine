@@ -44,4 +44,11 @@ public interface ExecutionContext {
      * @return the cumulative size of buffered logs in characters
      */
     long getBufferedLogsSize();
+    
+    /**
+     * Sets a listener to be notified of each log message as it is produced.
+     * 
+     * @param listener a consumer that receives each log message
+     */
+    void setLogListener(java.util.function.Consumer<String> listener);
 }

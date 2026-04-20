@@ -215,6 +215,14 @@ public class ManagerServer implements SmartLifecycle {
                                     socket.getRemoteSocketAddress());
                         }
                     }
+                    case JOB_LOG -> {
+                        if (localConnection != null) {
+                            handleJobLog(workerId, localConnection, message);
+                        } else {
+                            LOG.warn("Received JOB_LOG from unregistered connection {}",
+                                    socket.getRemoteSocketAddress());
+                        }
+                    }
                     case XCOM_REQUEST -> {
                         if (localConnection != null) {
                             handleXComRequest(workerId, localConnection, message);
@@ -410,8 +418,8 @@ public class ManagerServer implements SmartLifecycle {
             return;
         }
 
-        // 1. Save logs to file
-        saveJobLogs(jobId, logs);
+        // 1. Save logs to file (Overwrites any previous incremental logs with the final ground truth)
+        saveJobLogs(jobId, logs, false);
 
         job.setResult(summary);
         try {
@@ -508,15 +516,38 @@ public class ManagerServer implements SmartLifecycle {
         }
     }
 
-    private void saveJobLogs(UUID jobId, List<String> logs) {
+    private void handleJobLog(UUID workerId, WorkerConnection localConnection, Message message) {
+        try {
+            JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+            if (!json.has("jobId") || !json.has("logs")) return;
+            
+            UUID jobId = UUID.fromString(json.get("jobId").getAsString());
+            List<String> logs = GSON.fromJson(json.get("logs"), new com.google.gson.reflect.TypeToken<List<String>>(){}.getType());
+            
+            saveJobLogs(jobId, logs, true);
+        } catch (Exception e) {
+            LOG.error("Worker {}: failed to process JOB_LOG", workerId, e);
+        }
+    }
+
+    private void saveJobLogs(UUID jobId, List<String> logs, boolean append) {
         try {
             Path logDir = Paths.get("data", "var", "logs", "jobs");
             Files.createDirectories(logDir);
             Path logFile = logDir.resolve(jobId.toString() + ".log");
             
-            String jsonLogs = GSON.toJson(logs);
-            Files.writeString(logFile, jsonLogs, StandardCharsets.UTF_8);
-            LOG.debug("Saved logs for job {} to {}", jobId, logFile);
+            if (append && Files.exists(logFile)) {
+                // Read current logs, append new ones, and write back as JSON array
+                // For performance, we could use a different format (e.g. newline-delimited JSON), 
+                // but we'll stick to the current JSON array format for compatibility.
+                String existingContent = Files.readString(logFile, StandardCharsets.UTF_8);
+                List<String> existingLogs = GSON.fromJson(existingContent, new com.google.gson.reflect.TypeToken<List<String>>(){}.getType());
+                existingLogs.addAll(logs);
+                Files.writeString(logFile, GSON.toJson(existingLogs), StandardCharsets.UTF_8);
+            } else {
+                Files.writeString(logFile, GSON.toJson(logs), StandardCharsets.UTF_8);
+            }
+            LOG.debug("{} logs for job {} to {}", append ? "Appended" : "Saved", jobId, logFile);
         } catch (IOException e) {
             LOG.error("Failed to save logs for job {}", jobId, e);
         }

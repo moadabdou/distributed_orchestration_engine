@@ -167,6 +167,14 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
     setEdges(newEdges);
   }, [dag, setNodes, setEdges]);
 
+  // Handle 404 Not Found - clear memory and navigate home
+  useEffect(() => {
+    if (error && (error as any).status === 404) {
+      sessionStorage.removeItem('selectedWorkflowId');
+      navigate('/', { replace: true });
+    }
+  }, [error, navigate]);
+
   if (!workflowId) {
     return (
       <div className="glass-panel p-6 flex flex-col items-center justify-center text-center" style={{ height }}>

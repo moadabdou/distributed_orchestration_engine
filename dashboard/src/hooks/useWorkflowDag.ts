@@ -15,6 +15,12 @@ export const useWorkflowDag = (workflowId: string): UseWorkflowDagResult => {
     queryKey: ['workflowDag', workflowId],
     queryFn: () => getWorkflowDag(workflowId),
     refetchInterval: 3000,
+    enabled: !!workflowId,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 404 (Not Found)
+      if (error?.status === 404) return false;
+      return failureCount < 3;
+    },
   });
 
   return {

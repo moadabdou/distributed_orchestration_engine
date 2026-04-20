@@ -34,12 +34,14 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -387,6 +389,9 @@ public class WorkerClient {
 
         Future<String> taskFuture = jobExecutor.submit(() -> executor.execute(context));
         activeJobs.put(jobIdStr, new JobState(taskFuture, executor));
+        
+        LogStreamer logStreamer = new LogStreamer(uuid, context, egressQueue, workerId);
+        logStreamer.start();
 
         Thread.ofVirtual().name("job-waiter-" + jobIdStr).start(() -> {
             String status;
@@ -431,6 +436,11 @@ public class WorkerClient {
                 status = "CANCELLED";
                 output = "Job was cancelled by the manager";
                 LOG.info("Worker {}: job {} CANCELLED", workerId, jobIdStr);
+            }
+
+            // Stop streaming before sending final result
+            if (logStreamer != null) {
+                logStreamer.stop();
             }
 
             activeJobs.remove(jobIdStr);
@@ -612,6 +622,64 @@ public class WorkerClient {
             Thread.sleep(ms);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Helper to batch and stream logs every 2 seconds or immediately on ERROR.
+     */
+    private class LogStreamer {
+        private final UUID jobId;
+        private final BlockingQueue<OutboundMessage> egressQueue;
+        private final UUID workerId;
+        private final List<String> buffer = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final java.util.concurrent.ScheduledFuture<?> future;
+        private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "log-streamer-scheduler");
+            t.setDaemon(true);
+            return t;
+        });
+
+        public LogStreamer(UUID jobId, ExecutionContext context, BlockingQueue<OutboundMessage> egressQueue, UUID workerId) {
+            this.jobId = jobId;
+            this.egressQueue = egressQueue;
+            this.workerId = workerId;
+            
+            context.setLogListener(msg -> {
+                buffer.add(msg);
+                if (msg.toUpperCase().contains("ERROR") || msg.toUpperCase().contains("FATAL")) {
+                    flush();
+                }
+            });
+
+            this.future = scheduler.scheduleAtFixedRate(this::flush, 2, 2, TimeUnit.SECONDS);
+        }
+
+        public void start() {
+            // Already scheduled in constructor
+        }
+
+        public void stop() {
+            future.cancel(false);
+            flush(); // Final flush
+        }
+
+        private synchronized void flush() {
+            if (buffer.isEmpty()) return;
+            
+            List<String> logsToFlush = new ArrayList<>(buffer);
+            buffer.clear();
+            
+            try {
+                JsonObject payload = new JsonObject();
+                payload.addProperty("jobId", jobId.toString());
+                payload.add("logs", GSON.toJsonTree(logsToFlush));
+                
+                byte[] bytes = ProtocolEncoder.encode(MessageType.JOB_LOG, GSON.toJson(payload));
+                egressQueue.put(new OutboundMessage(bytes, e -> LOG.error("Worker {}: failed to stream logs for job {}", workerId, jobId, e)));
+            } catch (Exception e) {
+                LOG.error("Worker {}: error flushing logs for job {}", workerId, jobId, e);
+            }
         }
     }
 }

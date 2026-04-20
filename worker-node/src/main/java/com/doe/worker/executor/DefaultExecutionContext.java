@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * Default implementation of {@link ExecutionContext} used by the worker.
@@ -30,6 +31,7 @@ public class DefaultExecutionContext implements ExecutionContext {
     private final AtomicLong currentLogSize = new AtomicLong(0);
     private final long maxLogSize;
     private volatile boolean logsTruncated = false;
+    private volatile Consumer<String> logListener;
 
     private static Map<String, String> loadMinioEnvVars() {
         Map<String, String> vars = new HashMap<>();
@@ -105,6 +107,11 @@ public class DefaultExecutionContext implements ExecutionContext {
 
         logBuffer.add(message);
         LOG.info("[TASK-LOG] {}", message);
+        
+        Consumer<String> listener = logListener;
+        if (listener != null) {
+            listener.accept(message);
+        }
     }
 
     @Override
@@ -123,5 +130,10 @@ public class DefaultExecutionContext implements ExecutionContext {
 
     public UUID getJobId() {
         return definition.jobId();
+    }
+
+    @Override
+    public void setLogListener(Consumer<String> listener) {
+        this.logListener = listener;
     }
 }
