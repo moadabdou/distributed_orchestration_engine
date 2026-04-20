@@ -14,6 +14,7 @@ import com.doe.core.registry.WorkerDeathListener;
 import com.doe.manager.scheduler.DagScheduler;
 import com.doe.manager.scheduler.JobScheduler;
 import com.doe.manager.scheduler.JobTimeoutMonitor;
+import com.doe.manager.workflow.XComService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import org.slf4j.Logger;
@@ -28,6 +29,9 @@ import javax.crypto.SecretKey;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -69,6 +73,7 @@ public class ManagerServer implements SmartLifecycle {
     private final JobScheduler jobScheduler;
     private final JobTimeoutMonitor jobTimeoutMonitor;
     private final EngineEventListener eventListener;
+    private final XComService xComService;
     private final List<WorkerDeathListener> workerDeathListeners = new CopyOnWriteArrayList<>();
     private final int defaultWorkerMaxCapacity;
 
@@ -92,6 +97,7 @@ public class ManagerServer implements SmartLifecycle {
             JobScheduler jobScheduler,
             JobTimeoutMonitor jobTimeoutMonitor,
             EngineEventListener eventListener,
+            XComService xComService,
             List<WorkerDeathListener> workerDeathListeners) {
             
         if (port < 0 || port > 65535) {
@@ -110,6 +116,7 @@ public class ManagerServer implements SmartLifecycle {
         this.jobScheduler = jobScheduler;
         this.jobTimeoutMonitor = jobTimeoutMonitor;
         this.eventListener = eventListener;
+        this.xComService = xComService;
         this.jwtSecretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
         this.defaultWorkerMaxCapacity = defaultWorkerMaxCapacity;
         
@@ -205,6 +212,22 @@ public class ManagerServer implements SmartLifecycle {
                             handleJobResult(workerId, localConnection, message);
                         } else {
                             LOG.warn("Received JOB_RESULT from unregistered connection {}",
+                                    socket.getRemoteSocketAddress());
+                        }
+                    }
+                    case JOB_LOG -> {
+                        if (localConnection != null) {
+                            handleJobLog(workerId, localConnection, message);
+                        } else {
+                            LOG.warn("Received JOB_LOG from unregistered connection {}",
+                                    socket.getRemoteSocketAddress());
+                        }
+                    }
+                    case XCOM_REQUEST -> {
+                        if (localConnection != null) {
+                            handleXComRequest(workerId, localConnection, message);
+                        } else {
+                            LOG.warn("Received XCOM_REQUEST from unregistered connection {}",
                                     socket.getRemoteSocketAddress());
                         }
                     }
@@ -374,7 +397,8 @@ public class ManagerServer implements SmartLifecycle {
     private void handleJobResult(UUID workerId, WorkerConnection localConnection, Message message) {
         JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
         String status = json.has("status") ? json.get("status").getAsString() : "FAILED";
-        String output = json.has("output") ? json.get("output").getAsString() : "";
+        String summary = json.has("output") ? json.get("output").getAsString() : (json.has("summary") ? json.get("summary").getAsString() : "");
+        List<String> logs = json.has("logs") ? GSON.fromJson(json.get("logs"), new com.google.gson.reflect.TypeToken<List<String>>(){}.getType()) : List.of();
         
         if (!json.has("jobId")) {
             LOG.warn("Worker {}: message missing jobId", workerId);
@@ -390,13 +414,14 @@ public class ManagerServer implements SmartLifecycle {
 
         if (!workerId.equals(job.getAssignedWorkerId())) {
             LOG.warn("Worker {}: ignored JOB_RESULT for job {} (no longer assigned to this worker)", workerId, job.getId());
-            // It's possible the capacity was implicitly returned via a timeout rollback,
-            // but we can make sure by calling releaseCapacity here too.
             registry.releaseCapacity(workerId, jobId);
             return;
         }
 
-        job.setResult(output);
+        // 1. Save logs to file (Overwrites any previous incremental logs with the final ground truth)
+        saveJobLogs(jobId, logs, false);
+
+        job.setResult(summary);
         try {
             JobStatus target;
             if ("COMPLETED".equals(status)) {
@@ -408,27 +433,123 @@ public class ManagerServer implements SmartLifecycle {
             }
             
             job.transition(target);
-            LOG.info("Worker {}: job {} → {} | output: {}", workerId, job.getId(), target, output);
+            LOG.info("Worker {}: job {} → {} | summary: {}", workerId, job.getId(), target, summary);
 
             long durationMs = java.time.Duration.between(job.getCreatedAt(), job.getUpdatedAt()).toMillis();
             LOG.info("Job {} {} by Worker {} in {}ms", job.getId(), target, workerId, durationMs);
 
-            // Release capacity BEFORE notifying DB so the correct active job count is read
-            LOG.info("Worker {}: released capacity after job {}", workerId, job.getId());
             registry.releaseCapacity(workerId, job.getId());
 
             // Persist the final job state to DB
             if (target == JobStatus.COMPLETED) {
-                eventListener.onJobCompleted(job.getId(), workerId, output, job.getUpdatedAt());
+                eventListener.onJobCompleted(job.getId(), workerId, summary, job.getUpdatedAt());
             } else if (target == JobStatus.CANCELLED) {
-                eventListener.onJobCancelled(job.getId(), workerId, output, job.getUpdatedAt());
+                eventListener.onJobCancelled(job.getId(), workerId, summary, job.getUpdatedAt());
             } else {
-                eventListener.onJobFailed(job.getId(), workerId, output, job.getUpdatedAt());
+                eventListener.onJobFailed(job.getId(), workerId, summary, job.getUpdatedAt());
             }
         } catch (IllegalStateException e) {
             LOG.warn("Worker {}: could not transition job {} to terminal state: {}", workerId, job.getId(), e.getMessage());
-            LOG.info("Worker {}: released capacity after job {} failure", workerId, job.getId());
             registry.releaseCapacity(workerId, job.getId());
+        }
+    }
+
+    void handleXComRequest(UUID workerId, WorkerConnection localConnection, Message message) {
+        try {
+            JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+            String correlationId = json.get("correlationId").getAsString();
+            UUID jobId = UUID.fromString(json.get("jobId").getAsString());
+            String command = json.get("command").getAsString();
+            String key = json.get("key").getAsString();
+
+            // Find job to get workflowId
+            Job job = jobRegistry.get(jobId).orElse(null);
+            if (job == null) {
+                sendXComResponse(localConnection, correlationId, "ERROR", "Job not found: " + jobId);
+                return;
+            }
+            
+            UUID workflowId = null; 
+            if (json.has("workflowId")) {
+                workflowId = UUID.fromString(json.get("workflowId").getAsString());
+            }
+
+            if (workflowId == null) {
+                sendXComResponse(localConnection, correlationId, "ERROR", "workflowId missing in request");
+                return;
+            }
+
+            if ("push".equalsIgnoreCase(command)) {
+                String value = json.get("value").getAsString();
+                String type = json.has("type") ? json.get("type").getAsString() : "message";
+                xComService.push(workflowId, jobId, key, value, type);
+                sendXComResponse(localConnection, correlationId, "SUCCESS", "Pushed");
+            } else if ("pull".equalsIgnoreCase(command)) {
+                Optional<String> val = xComService.pull(workflowId, key);
+                if (val.isPresent()) {
+                    sendXComResponse(localConnection, correlationId, "SUCCESS", val.get());
+                } else {
+                    sendXComResponse(localConnection, correlationId, "NOT_FOUND", null);
+                }
+            } else {
+                sendXComResponse(localConnection, correlationId, "ERROR", "Unknown command: " + command);
+            }
+
+        } catch (Exception e) {
+            LOG.error("Error handling XCom request from worker {}", workerId, e);
+        }
+    }
+
+    void sendXComResponse(WorkerConnection connection, String correlationId, String status, String value) {
+        try {
+            JsonObject response = new JsonObject();
+            response.addProperty("correlationId", correlationId);
+            response.addProperty("status", status);
+            if (value != null) {
+                response.addProperty("value", value);
+            }
+            byte[] wire = ProtocolEncoder.encode(MessageType.XCOM_RESPONSE, GSON.toJson(response));
+            connection.getSocket().getOutputStream().write(wire);
+            connection.getSocket().getOutputStream().flush();
+        } catch (IOException e) {
+            LOG.error("Failed to send XCOM_RESPONSE back to worker", e);
+        }
+    }
+
+    private void handleJobLog(UUID workerId, WorkerConnection localConnection, Message message) {
+        try {
+            JsonObject json = GSON.fromJson(message.payloadAsString(), JsonObject.class);
+            if (!json.has("jobId") || !json.has("logs")) return;
+            
+            UUID jobId = UUID.fromString(json.get("jobId").getAsString());
+            List<String> logs = GSON.fromJson(json.get("logs"), new com.google.gson.reflect.TypeToken<List<String>>(){}.getType());
+            
+            saveJobLogs(jobId, logs, true);
+        } catch (Exception e) {
+            LOG.error("Worker {}: failed to process JOB_LOG", workerId, e);
+        }
+    }
+
+    private void saveJobLogs(UUID jobId, List<String> logs, boolean append) {
+        try {
+            Path logDir = Paths.get("data", "var", "logs", "jobs");
+            Files.createDirectories(logDir);
+            Path logFile = logDir.resolve(jobId.toString() + ".log");
+            
+            if (append && Files.exists(logFile)) {
+                // Read current logs, append new ones, and write back as JSON array
+                // For performance, we could use a different format (e.g. newline-delimited JSON), 
+                // but we'll stick to the current JSON array format for compatibility.
+                String existingContent = Files.readString(logFile, StandardCharsets.UTF_8);
+                List<String> existingLogs = GSON.fromJson(existingContent, new com.google.gson.reflect.TypeToken<List<String>>(){}.getType());
+                existingLogs.addAll(logs);
+                Files.writeString(logFile, GSON.toJson(existingLogs), StandardCharsets.UTF_8);
+            } else {
+                Files.writeString(logFile, GSON.toJson(logs), StandardCharsets.UTF_8);
+            }
+            LOG.debug("{} logs for job {} to {}", append ? "Appended" : "Saved", jobId, logFile);
+        } catch (IOException e) {
+            LOG.error("Failed to save logs for job {}", jobId, e);
         }
     }
 

@@ -92,5 +92,10 @@ public class MetricsConfig {
         public void onJobRequeued(UUID jobId, int retryCount, Instant updatedAt) {
             for (EngineEventListener d : delegates) d.onJobRequeued(jobId, retryCount, updatedAt);
         }
+
+        @Override
+        public void onJobSkipped(UUID jobId, Instant updatedAt) {
+            for (EngineEventListener d : delegates) d.onJobSkipped(jobId, updatedAt);
+        }
     }
 }

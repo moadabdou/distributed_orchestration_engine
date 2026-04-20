@@ -1,5 +1,6 @@
 package com.doe.manager.api.dto;
 
+import com.doe.core.executor.JobDefinition;
 import java.util.List;
 
 /**
@@ -8,6 +9,6 @@ import java.util.List;
  */
 public record UpdateWorkflowRequest(
         String name,
-        List<CreateWorkflowRequest.JobDefinition> jobs,
+        List<JobDefinition> jobs,
         List<CreateWorkflowRequest.DependencyEdge> dependencies
 ) {}

@@ -17,7 +17,8 @@ import java.util.UUID;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(WorkerController.class)
+
+@WebMvcTest(WorkerController.class)  
 public class WorkerControllerTest {
 
     @Autowired

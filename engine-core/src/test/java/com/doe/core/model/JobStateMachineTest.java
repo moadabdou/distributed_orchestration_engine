@@ -20,7 +20,7 @@ class JobStateMachineTest {
     // ──── Helper ─────────────────────────────────────────────────────────────
 
     private Job pendingJob() {
-        return Job.newJob("{\"cmd\":\"echo hello\"}").build();
+        return Job.newJob("{\"cmd\":\"echo hello\"}").timeoutMs(60000L).build();
     }
 
     // ──── Valid forward transitions ──────────────────────────────────────────
@@ -116,6 +116,7 @@ class JobStateMachineTest {
         job.transition(JobStatus.FAILED);
 
         for (JobStatus target : JobStatus.values()) {
+            if (target == JobStatus.PENDING) continue;
             assertThrows(IllegalStateException.class,
                     () -> job.transition(target),
                     "Expected exception for FAILED → " + target);
@@ -174,7 +175,7 @@ class JobStateMachineTest {
     @DisplayName("Builder allows setting assignedWorkerId")
     void builder_setsAssignedWorkerId() {
         UUID workerId = UUID.randomUUID();
-        Job job = Job.newJob("{}").assignedWorkerId(workerId).build();
+        Job job = Job.newJob("{}").timeoutMs(60000L).assignedWorkerId(workerId).build();
         assertEquals(workerId, job.getAssignedWorkerId());
     }
 

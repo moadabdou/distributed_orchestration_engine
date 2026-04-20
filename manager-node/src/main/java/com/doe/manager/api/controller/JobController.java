@@ -44,4 +44,10 @@ public class JobController {
         jobService.cancelJob(id);
         return jobService.getJob(id);
     }
+
+    @PostMapping("/{id}/retry")
+    public JobResponse retryJob(@PathVariable("id") UUID id) {
+        jobService.retryJob(id);
+        return jobService.getJob(id);
+    }
 }

@@ -1,5 +1,9 @@
 # Issue 047: Sensor/Trigger Operator
 
+> [!IMPORTANT]
+> **SUPERSEDED**: This specialized Java operator has been dropped in favor of using the `PythonTaskExecutor`.
+> Sensor logic (polling files, endpoints, etc.) should now be implemented as Python scripts that "poke" their targets, leveraging Python's rich integration ecosystem.
+
 ## Description
 Implement a sensor operator that waits for external events (file arrival, API response, time-based triggers) before proceeding with downstream jobs.
 

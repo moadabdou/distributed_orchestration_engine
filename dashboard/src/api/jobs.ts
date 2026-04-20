@@ -35,3 +35,13 @@ export const cancelJob = async (id: string): Promise<Job> => {
   const response = await apiClient.post<Job>(`/jobs/${id}/cancel`);
   return response.data;
 };
+
+export const retryJob = async (id: string): Promise<Job> => {
+  const response = await apiClient.post<Job>(`/jobs/${id}/retry`);
+  return response.data;
+};
+
+export const getJobLogsUrl = (id: string): string => {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+  return `${baseUrl}/logs/jobs/${id}`;
+};

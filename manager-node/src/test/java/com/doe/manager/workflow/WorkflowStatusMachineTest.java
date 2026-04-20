@@ -111,9 +111,9 @@ class WorkflowStatusMachineTest {
     }
 
     @Test
-    @DisplayName("PAUSED → DRAFT is invalid (at enum level; resetWorkflow handles this)")
-    void paused_toDraft_invalid() {
-        assertFalse(WorkflowStatus.PAUSED.canTransitionTo(WorkflowStatus.DRAFT));
+    @DisplayName("PAUSED → DRAFT is valid (via resetWorkflow)")
+    void paused_toDraft_valid() {
+        assertTrue(WorkflowStatus.PAUSED.canTransitionTo(WorkflowStatus.DRAFT));
     }
 
     @Test
@@ -129,21 +129,25 @@ class WorkflowStatusMachineTest {
     }
 
     @Test
-    @DisplayName("COMPLETED → any is invalid (terminal state)")
-    void completed_terminal() {
-        for (WorkflowStatus target : WorkflowStatus.values()) {
-            assertFalse(WorkflowStatus.COMPLETED.canTransitionTo(target),
-                    "COMPLETED → " + target + " should be invalid");
-        }
+    @DisplayName("COMPLETED → RUNNING/DRAFT is valid; others invalid")
+    void completed_transitions() {
+        assertTrue(WorkflowStatus.COMPLETED.canTransitionTo(WorkflowStatus.RUNNING));
+        assertTrue(WorkflowStatus.COMPLETED.canTransitionTo(WorkflowStatus.DRAFT));
+        
+        assertFalse(WorkflowStatus.COMPLETED.canTransitionTo(WorkflowStatus.PAUSED));
+        assertFalse(WorkflowStatus.COMPLETED.canTransitionTo(WorkflowStatus.COMPLETED));
+        assertFalse(WorkflowStatus.COMPLETED.canTransitionTo(WorkflowStatus.FAILED));
     }
 
     @Test
-    @DisplayName("FAILED → any is invalid (terminal state)")
-    void failed_terminal() {
-        for (WorkflowStatus target : WorkflowStatus.values()) {
-            assertFalse(WorkflowStatus.FAILED.canTransitionTo(target),
-                    "FAILED → " + target + " should be invalid");
-        }
+    @DisplayName("FAILED → RUNNING/DRAFT is valid; others invalid")
+    void failed_transitions() {
+        assertTrue(WorkflowStatus.FAILED.canTransitionTo(WorkflowStatus.RUNNING));
+        assertTrue(WorkflowStatus.FAILED.canTransitionTo(WorkflowStatus.DRAFT));
+        
+        assertFalse(WorkflowStatus.FAILED.canTransitionTo(WorkflowStatus.PAUSED));
+        assertFalse(WorkflowStatus.FAILED.canTransitionTo(WorkflowStatus.COMPLETED));
+        assertFalse(WorkflowStatus.FAILED.canTransitionTo(WorkflowStatus.FAILED));
     }
 
     // ──── Exhaustive transition matrix ──────────────────────────────────────
@@ -158,7 +162,12 @@ class WorkflowStatusMachineTest {
                 new Transition(WorkflowStatus.RUNNING, WorkflowStatus.COMPLETED),
                 new Transition(WorkflowStatus.RUNNING, WorkflowStatus.FAILED),
                 new Transition(WorkflowStatus.PAUSED, WorkflowStatus.RUNNING),
-                new Transition(WorkflowStatus.PAUSED, WorkflowStatus.FAILED)
+                new Transition(WorkflowStatus.PAUSED, WorkflowStatus.FAILED),
+                new Transition(WorkflowStatus.PAUSED, WorkflowStatus.DRAFT),
+                new Transition(WorkflowStatus.COMPLETED, WorkflowStatus.RUNNING),
+                new Transition(WorkflowStatus.COMPLETED, WorkflowStatus.DRAFT),
+                new Transition(WorkflowStatus.FAILED, WorkflowStatus.RUNNING),
+                new Transition(WorkflowStatus.FAILED, WorkflowStatus.DRAFT)
         );
 
         WorkflowStatus[] allStatuses = WorkflowStatus.values();
@@ -350,7 +359,7 @@ class WorkflowStatusMachineTest {
     // ──── Helpers ───────────────────────────────────────────────────────────
 
     private com.doe.core.model.Workflow createSimpleWorkflow(WorkflowManager mgr) {
-        var j = com.doe.core.model.Job.newJob("test").build();
+        var j = com.doe.core.model.Job.newJob("test").timeoutMs(60000L).build();
         var wj = com.doe.core.model.WorkflowJob.fromJob(j)
                 .dagIndex(0)
                 .dependencies(List.of())

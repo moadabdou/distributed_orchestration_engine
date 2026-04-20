@@ -1,0 +1,5 @@
+com.doe.worker.executor.EchoPlugin
+com.doe.worker.executor.SleepPlugin
+com.doe.worker.executor.FibonacciPlugin
+com.doe.worker.executor.ShellScriptPlugin
+com.doe.worker.executor.PythonTaskExecutor

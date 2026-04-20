@@ -1,5 +1,9 @@
 # Issue 044: HTTP/API Operator
 
+> [!IMPORTANT]
+> **SUPERSEDED**: This specialized Java operator has been dropped in favor of using the `PythonTaskExecutor`. 
+> Common HTTP tasks should now be performed using Python scripts with the `requests` library, which is pre-installed in the worker nodes.
+
 ## Description
 Implement an HTTP operator that makes HTTP requests, handles retries, validates responses, and supports chaining API calls.
 

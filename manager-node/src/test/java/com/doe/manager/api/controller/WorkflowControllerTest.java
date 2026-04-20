@@ -223,11 +223,11 @@ class WorkflowControllerTest {
                 List.of(
                         new DagGraphResponse.DagNodeResponse(
                                 jobA, "job-0", 0, JobStatus.PENDING, "task-A",
-                                null, null, Instant.now(), Instant.now()
+                                null, jobB, 0, null, Instant.now(), Instant.now()
                         ),
                         new DagGraphResponse.DagNodeResponse(
                                 jobB, "job-1", 1, JobStatus.PENDING, "task-B",
-                                null, null, Instant.now(), Instant.now()
+                                null, jobB, 0, null, Instant.now(), Instant.now()
                         )
                 ),
                 List.of(new DagGraphResponse.DagEdgeResponse(jobA, jobB))
@@ -243,4 +243,14 @@ class WorkflowControllerTest {
                 .andExpect(jsonPath("$.edges[0].sourceJobId").value(jobA.toString()))
                 .andExpect(jsonPath("$.edges[0].targetJobId").value(jobB.toString()));
     }
+    // ── DELETE /api/v1/workflows/{id}/xcom ──────────────────────────────────
+    @Test
+    void clearXComHistory_Returns204() throws Exception {
+        UUID id = UUID.randomUUID();
+        Mockito.doNothing().when(workflowService).clearXComHistory(id);
+
+        mockMvc.perform(delete("/api/v1/workflows/{id}/xcom", id))
+                .andExpect(status().isNoContent());
+    }
 }
+

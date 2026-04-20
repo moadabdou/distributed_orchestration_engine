@@ -7,6 +7,7 @@ import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
 import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.workflow.WorkflowManager;
+import com.doe.manager.workflow.WorkflowEventListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +60,7 @@ import java.util.concurrent.TimeUnit;
  * thread-safe per-workflow tracking.
  */
 @Component
-public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListener {
+public class DagScheduler implements WorkflowEventListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(DagScheduler.class);
 
@@ -72,6 +73,9 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
 
     /** Tracks which jobs have already been submitted to the queue per workflow, to avoid double-submission. */
     private final Map<UUID, Set<UUID>> submittedJobs = new ConcurrentHashMap<>();
+
+    /** Locks per workflow to ensure serial evaluation even if triggered from multiple threads. */
+    private final Map<UUID, Object> workflowLocks = new ConcurrentHashMap<>();
 
     private ScheduledExecutorService schedulerExecutor;
     private volatile boolean running;
@@ -171,44 +175,48 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
      * if the workflow has reached a terminal state.
      */
     private void evaluateWorkflow(UUID workflowId) {
-        Workflow workflow = workflowManager.getWorkflow(workflowId);
-        if (workflow == null || workflow.getStatus() != WorkflowStatus.RUNNING) {
-            return;
-        }
-
-        Set<UUID> alreadySubmitted = submittedJobs.computeIfAbsent(workflowId, k ->
-                Collections.newSetFromMap(new ConcurrentHashMap<>()));
-
-        List<WorkflowJob> readyJobs = findReadyJobs(workflow, alreadySubmitted);
-
-        if (readyJobs.isEmpty()) {
-            // No ready jobs — check if workflow is done
-            checkTerminalState(workflow);
-            return;
-        }
-
-        // Enqueue ready jobs (respecting max-concurrent limit)
-        int runningJobCount = countRunningJobs(workflow, alreadySubmitted);
-        int enqueued = 0;
-        for (WorkflowJob wj : readyJobs) {
-            if (runningJobCount + enqueued >= maxConcurrentJobsPerWorkflow) {
-                LOG.debug("Workflow {} reached max concurrent jobs limit ({})", workflowId, maxConcurrentJobsPerWorkflow);
-                break;
+        synchronized (workflowLocks.computeIfAbsent(workflowId, k -> new Object())) {
+            Workflow workflow = workflowManager.getWorkflow(workflowId);
+            if (workflow == null || workflow.getStatus() != WorkflowStatus.RUNNING) {
+                return;
             }
 
-            Job job = wj.getJob();
-            // Double-check the job is still PENDING (may have changed since we read it)
-            if (job.getStatus() != JobStatus.PENDING) {
-                alreadySubmitted.add(job.getId()); 
-                continue;
+            Set<UUID> alreadySubmitted = submittedJobs.computeIfAbsent(workflowId, k ->
+                    Collections.newSetFromMap(new ConcurrentHashMap<>()));
+
+            List<WorkflowJob> readyJobs = findReadyJobs(workflow, alreadySubmitted);
+
+            if (readyJobs.isEmpty()) {
+                // No ready jobs — check if workflow is done
+                checkTerminalState(workflow);
+                return;
             }
 
-            // Atomically check if it was already submitted by another thread evaluating concurrently
-            if (alreadySubmitted.add(job.getId())) {
-                jobQueue.enqueue(job);
-                enqueued++;
-                LOG.info("DagScheduler: enqueued job {} from workflow {} (deps satisfied)",
-                        job.getId(), workflowId);
+            // Enqueue ready jobs (respecting max-concurrent limit)
+            int runningJobCount = countRunningJobs(workflow, alreadySubmitted);
+            LOG.info("DagScheduler: workflow {} has {} running/enqueued jobs. readyJobs={}, limit={}", 
+                    workflowId, runningJobCount, readyJobs.size(), maxConcurrentJobsPerWorkflow);
+            int enqueued = 0;
+            for (WorkflowJob wj : readyJobs) {
+                if (runningJobCount + enqueued >= maxConcurrentJobsPerWorkflow) {
+                    LOG.debug("Workflow {} reached max concurrent jobs limit ({})", workflowId, maxConcurrentJobsPerWorkflow);
+                    break;
+                }
+
+                Job job = wj.getJob();
+                // Double-check the job is still PENDING (may have changed since we read it)
+                if (job.getStatus() != JobStatus.PENDING) {
+                    alreadySubmitted.add(job.getId()); 
+                    continue;
+                }
+
+                // Atomically check if it was already submitted by another thread evaluating concurrently
+                if (alreadySubmitted.add(job.getId())) {
+                    jobQueue.enqueue(job);
+                    enqueued++;
+                    LOG.info("DagScheduler: enqueued job {} from workflow {} (deps satisfied)",
+                            job.getId(), workflowId);
+                }
             }
         }
     }
@@ -231,12 +239,6 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
             // Check if all dependencies are COMPLETED
             if (areDependenciesSatisfied(wj, workflow)) {
                 ready.add(wj);
-            } else if (failFast) {
-                // Check if any dependency FAILED — if so, this job should never run
-                if (hasFailedDependency(wj, workflow)) {
-                    alreadySubmitted.add(job.getId());
-                    failJobWithUnmetDependencies(workflow.getId(), job);
-                }
             }
         }
 
@@ -261,38 +263,6 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
             }
         }
         return true;
-    }
-
-    /**
-     * Returns true if any dependency of the given workflow job has FAILED or CANCELLED.
-     */
-    private boolean hasFailedDependency(WorkflowJob wj, Workflow workflow) {
-        for (UUID depId : wj.getDependencies()) {
-            WorkflowJob depWj = workflow.getJob(depId);
-            if (depWj != null && (depWj.getJob().getStatus() == JobStatus.FAILED
-                    || depWj.getJob().getStatus() == JobStatus.CANCELLED)) {
-                return true;
-            }
-            // Recursively check transitive dependencies
-            if (depWj != null && hasFailedDependency(depWj, workflow)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Marks a job as CANCELLED because its dependencies could not be met (fail-fast mode).
-     * PENDING → CANCELLED is a valid transition; the job was never dispatched.
-     * Fires {@code onJobCancelled} so persistence listeners update the DB record.
-     */
-    private void failJobWithUnmetDependencies(UUID workflowId, Job job) {
-        job.transition(JobStatus.CANCELLED);
-        job.setResult("Skipped: dependency failed (fail-fast mode)");
-        LOG.info("DagScheduler: cancelled job {} in workflow {} due to unmet dependencies",
-                job.getId(), workflowId);
-        // Notify all EngineEventListeners (incl. DatabaseEventListener) so the DB is updated.
-        eventListener.onJobCancelled(job.getId(), null, job.getResult(), job.getUpdatedAt());
     }
 
     /**
@@ -324,43 +294,138 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
      */
     private void checkTerminalState(Workflow workflow) {
         UUID workflowId = workflow.getId();
-        boolean allTerminal = true;
-        boolean anyNonSuccess = false; // FAILED or CANCELLED
+        boolean allFinished = true;
+        boolean allSuccessful = true;
 
         for (WorkflowJob wj : workflow.getJobs()) {
-            JobStatus status = wj.getJob().getStatus();
-            switch (status) {
-                case COMPLETED:
-                    // terminal, success — ok
-                    break;
-                case FAILED:
-                case CANCELLED:
-                    // terminal, non-success
-                    anyNonSuccess = true;
-                    break;
-                default:
-                    // PENDING, ASSIGNED, RUNNING — not yet terminal
-                    allTerminal = false;
-                    break;
+            if (!isEffectivelyComplete(wj, workflow)) {
+                allFinished = false;
+                break;
+            }
+            if (wj.getJob().getStatus() != JobStatus.COMPLETED) {
+                allSuccessful = false;
             }
         }
 
-        if (allTerminal && anyNonSuccess) {
-            // All jobs terminal, at least one failed/cancelled
-            try {
-                workflowManager.failWorkflow(workflowId);
-                LOG.info("DagScheduler: workflow {} FAILED (at least one job failed/cancelled)", workflowId);
-            } catch (Exception e) {
-                LOG.debug("Could not fail workflow {} (may already be terminal): {}", workflowId, e.getMessage());
+        if (allFinished) {
+            // Before marking workflow as terminal, transition any remaining PENDING jobs to SKIPPED
+            for (WorkflowJob wj : workflow.getJobs()) {
+                if (wj.getJob().getStatus() == JobStatus.PENDING) {
+                    skipJob(workflowId, wj.getJob());
+                }
             }
-        } else if (allTerminal && !anyNonSuccess) {
-            // All jobs completed successfully
-            try {
-                workflowManager.completeWorkflow(workflowId);
-                LOG.info("DagScheduler: workflow {} COMPLETED (all jobs done)", workflowId);
-            } catch (Exception e) {
-                LOG.debug("Could not complete workflow {} (may already be terminal): {}", workflowId, e.getMessage());
+
+            if (allSuccessful) {
+                try {
+                    workflowManager.completeWorkflow(workflowId);
+                    LOG.info("DagScheduler: workflow {} COMPLETED (all jobs done)", workflowId);
+                } catch (Exception e) {
+                    LOG.debug("Could not complete workflow {} (may already be terminal): {}", workflowId, e.getMessage());
+                }
+            } else {
+                try {
+                    workflowManager.failWorkflow(workflowId);
+                    LOG.info("DagScheduler: workflow {} FAILED (some jobs failed, cancelled, or blocked)", workflowId);
+                } catch (Exception e) {
+                    LOG.debug("Could not fail workflow {} (may already be terminal): {}", workflowId, e.getMessage());
+                }
             }
+        }
+    }
+
+    /**
+     * Marks a job as SKIPPED because it was PENDING when the workflow terminated.
+     */
+    private void skipJob(UUID workflowId, Job job) {
+        try {
+            job.transition(JobStatus.SKIPPED);
+            job.setResult("Skipped: workflow terminated before this job could run");
+            LOG.info("DagScheduler: marked job {} in workflow {} as SKIPPED", job.getId(), workflowId);
+            eventListener.onJobSkipped(job.getId(), job.getUpdatedAt());
+        } catch (IllegalStateException e) {
+            // skip if naturally progressed meanwhile
+        }
+    }
+
+    /**
+     * Recursively checks if a job is "effectively complete".
+     * A job is effectively complete if:
+     * 1. It is in a terminal state (COMPLETED, FAILED, CANCELLED)
+     * 2. It is PENDING but all of its dependencies are effectively complete.
+     *
+     * <p>Note: a PENDING job whose dependencies are terminal but 
+     * not all COMPLETED will never run, hence it's effectively complete.
+     */
+    private boolean isEffectivelyComplete(WorkflowJob wj, Workflow workflow) {
+        JobStatus status = wj.getJob().getStatus();
+        if (status == JobStatus.COMPLETED || status == JobStatus.FAILED || status == JobStatus.CANCELLED) {
+            return true;
+        }
+
+        // If it's not PENDING (e.g. RUNNING, ASSIGNED), it's not finished
+        if (status != JobStatus.PENDING) {
+            return false;
+        }
+
+        // It's PENDING. Check dependencies.
+        // If it has no dependencies, it's not "complete" yet (it's ready to run)
+        if (wj.getDependencies().isEmpty()) {
+            return false;
+        }
+
+        // If ALL dependencies are COMPLETED, this job is ready to run, so not "complete"
+        boolean allDepsCompleted = true;
+        for (UUID depId : wj.getDependencies()) {
+            WorkflowJob depWj = workflow.getJob(depId);
+            if (depWj == null || depWj.getJob().getStatus() != JobStatus.COMPLETED) {
+                allDepsCompleted = false;
+                break;
+            }
+        }
+        if (allDepsCompleted) {
+            return false;
+        }
+
+        // Check if it's blocked: any dependency is terminal but not COMPLETED,
+        // or recursively blocked.
+        for (UUID depId : wj.getDependencies()) {
+            WorkflowJob depWj = workflow.getJob(depId);
+            if (depWj == null) continue; // Should not happen
+
+            // If a dependency is FAILED or CANCELLED, this job is blocked (complete)
+            JobStatus depStatus = depWj.getJob().getStatus();
+            if (depStatus == JobStatus.FAILED || depStatus == JobStatus.CANCELLED) {
+                return true;
+            }
+
+            // If a dependency is PENDING, we must check if it's blocked recursively
+            if (depStatus == JobStatus.PENDING) {
+                if (isEffectivelyComplete(depWj, workflow)) {
+                    // Dependency is blocked, so this job is blocked
+                    return true;
+                } else {
+                    // Dependency is still "potentially runnable", so this job is not blocked
+                    return false;
+                }
+            }
+            
+            // If dependency is RUNNING or ASSIGNED, this job is not blocked
+            if (depStatus == JobStatus.RUNNING || depStatus == JobStatus.ASSIGNED) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Clears a specific job from the submitted-jobs tracker for a workflow.
+     * Called when a job is being retried.
+     */
+    public void forgetJob(UUID workflowId, UUID jobId) {
+        Set<UUID> workflowJobs = submittedJobs.get(workflowId);
+        if (workflowJobs != null) {
+            workflowJobs.remove(jobId);
         }
     }
 
@@ -370,6 +435,7 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
      */
     public void forgetWorkflow(UUID workflowId) {
         submittedJobs.remove(workflowId);
+        workflowLocks.remove(workflowId);
     }
 
     // ──── WorkflowEventListener overrides ───────────────────────────────────
@@ -401,7 +467,28 @@ public class DagScheduler implements com.doe.manager.workflow.WorkflowEventListe
 
     @Override
     public void onWorkflowResumed(Workflow workflow) {
-        // No-op
+        UUID workflowId = workflow.getId();
+        LOG.info("DagScheduler: workflow {} resumed, transitioning SKIPPED jobs back to PENDING", workflowId);
+        
+        for (WorkflowJob wj : workflow.getJobs()) {
+            Job job = wj.getJob();
+            if (job.getStatus() == JobStatus.SKIPPED) {
+                try {
+                    job.transition(JobStatus.PENDING);
+                    job.setResult(null);
+                    // Ensure the scheduler forgets this job so it can be re-submitted
+                    forgetJob(workflowId, job.getId());
+                    // Notify listener so DB is updated
+                    eventListener.onJobRequeued(job.getId(), job.getRetryCount(), job.getUpdatedAt());
+                    LOG.info("DagScheduler: reverted job {} in workflow {} from SKIPPED to PENDING", job.getId(), workflowId);
+                } catch (IllegalStateException e) {
+                    LOG.warn("Could not transition job {} from SKIPPED to PENDING: {}", job.getId(), e.getMessage());
+                }
+            }
+        }
+        
+        // Trigger immediate evaluation
+        evaluateWorkflow(workflowId);
     }
 
     @Override

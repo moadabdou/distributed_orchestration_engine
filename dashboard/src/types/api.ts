@@ -1,9 +1,10 @@
 export interface Job {
   id: string;
-  status: 'PENDING' | 'ASSIGNED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'ASSIGNED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'SKIPPED';
   payload: string;
   result: string | null;
   workerId: string | null;
+  workflowId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -65,6 +66,8 @@ export interface DagNode {
   payload: string;
   result: string | null;
   workerId: string | null;
+  timeoutMs: number;
+  jobLabel: string | null;
   createdAt: string;
   updatedAt: string;
   position?: { x: number; y: number };

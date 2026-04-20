@@ -47,7 +47,7 @@ class WorkflowManagerTest {
     }
 
     private WorkflowJob makeWorkflowJob(String payload, List<UUID> dependencies) {
-        Job job = Job.newJob(payload).build();
+        Job job = Job.newJob(payload).timeoutMs(60000L).build();
         return WorkflowJob.fromJob(job)
                 .dagIndex(0)
                 .dependencies(dependencies)
@@ -84,7 +84,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow rejects workflow with self-dependency")
     void registerWorkflow_selfDependency_throws() {
-        Job job = Job.newJob("self").build();
+        Job job = Job.newJob("self").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job)
                 .dagIndex(0)
                 .dependencies(List.of(job.getId()))
@@ -97,8 +97,8 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow rejects workflow with missing dependency")
     void registerWorkflow_missingDependency_throws() {
-        Job jobA = Job.newJob("a").build();
-        Job jobB = Job.newJob("b").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB).dagIndex(1).dependencies(List.of(jobA.getId(), UUID.randomUUID())).build();
         Workflow workflow = createWorkflow("bad-dag", List.of(wjA, wjB));
@@ -109,8 +109,8 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow rejects workflow with cycle")
     void registerWorkflow_cycle_throws() {
-        Job jobA = Job.newJob("a").build();
-        Job jobB = Job.newJob("b").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of(jobB.getId())).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB).dagIndex(1).dependencies(List.of(jobA.getId())).build();
         Workflow workflow = createWorkflow("cyclic-dag", List.of(wjA, wjB));
@@ -121,9 +121,9 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("registerWorkflow accepts valid DAG with multiple root nodes")
     void registerWorkflow_validMultiRoot() {
-        Job a = Job.newJob("a").build();
-        Job b = Job.newJob("b").build();
-        Job c = Job.newJob("c").build();
+        Job a = Job.newJob("a").timeoutMs(60000L).build();
+        Job b = Job.newJob("b").timeoutMs(60000L).build();
+        Job c = Job.newJob("c").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(a).dagIndex(0).dependencies(List.of()).build();
         WorkflowJob wjB = WorkflowJob.fromJob(b).dagIndex(1).dependencies(List.of()).build();
         WorkflowJob wjC = WorkflowJob.fromJob(c).dagIndex(2).dependencies(List.of(a.getId(), b.getId())).build();
@@ -360,7 +360,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("resetWorkflow transitions PAUSED → DRAFT and resets job statuses")
     void resetWorkflow_pausedToDraft() {
-        Job job = Job.newJob("echo").build();
+        Job job = Job.newJob("echo").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wj));
         manager.registerWorkflow(workflow);
@@ -376,7 +376,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("resetWorkflow transitions COMPLETED → DRAFT and resets job statuses")
     void resetWorkflow_completedToDraft() {
-        Job job = Job.newJob("echo").build();
+        Job job = Job.newJob("echo").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wj));
         manager.registerWorkflow(workflow);
@@ -392,7 +392,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("resetWorkflow transitions FAILED → DRAFT and resets job statuses")
     void resetWorkflow_failedToDraft() {
-        Job job = Job.newJob("echo").build();
+        Job job = Job.newJob("echo").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wj));
         manager.registerWorkflow(workflow);
@@ -419,7 +419,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("resetWorkflow on DRAFT resets job statuses but stays DRAFT")
     void resetWorkflow_draft_resetsJobs() {
-        Job job = Job.newJob("echo").build();
+        Job job = Job.newJob("echo").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wj));
         manager.registerWorkflow(workflow);
@@ -441,12 +441,12 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow replaces definition in DRAFT state")
     void updateWorkflow_draft() {
-        Job job1 = Job.newJob("old").build();
+        Job job1 = Job.newJob("old").timeoutMs(60000L).build();
         WorkflowJob wj1 = WorkflowJob.fromJob(job1).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wj1));
         manager.registerWorkflow(workflow);
 
-        Job job2 = Job.newJob("new").build();
+        Job job2 = Job.newJob("new").timeoutMs(60000L).build();
         WorkflowJob wj2 = WorkflowJob.fromJob(job2).dagIndex(0).dependencies(List.of()).build();
         Workflow updated = createWorkflow("test-updated", List.of(wj2));
         // Ensure same ID
@@ -465,14 +465,14 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow replaces definition in PAUSED state")
     void updateWorkflow_paused() {
-        Job job1 = Job.newJob("old").build();
+        Job job1 = Job.newJob("old").timeoutMs(60000L).build();
         WorkflowJob wj1 = WorkflowJob.fromJob(job1).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wj1));
         manager.registerWorkflow(workflow);
         manager.executeWorkflow(workflow.getId());
         manager.pauseWorkflow(workflow.getId());
 
-        Job job2 = Job.newJob("new").build();
+        Job job2 = Job.newJob("new").timeoutMs(60000L).build();
         WorkflowJob wj2 = WorkflowJob.fromJob(job2).dagIndex(0).dependencies(List.of()).build();
         Workflow updated = Workflow.newWorkflow("test-updated")
                 .id(workflow.getId())
@@ -538,13 +538,13 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow rejects invalid DAG")
     void updateWorkflow_invalidDag_throws() {
-        Job jobA = Job.newJob("a").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wjA));
         manager.registerWorkflow(workflow);
 
         // New workflow with self-dependency
-        Job jobB = Job.newJob("b").build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB)
                 .dagIndex(0)
                 .dependencies(List.of(jobB.getId()))
@@ -574,13 +574,13 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow in DRAFT rejects jobs that are not PENDING")
     void updateWorkflow_draft_nonPendingJobs_throws() {
-        Job jobA = Job.newJob("a").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wjA));
         manager.registerWorkflow(workflow);
 
         // New workflow with a job in COMPLETED status
-        Job jobB = Job.newJob("b").build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         jobB.transition(com.doe.core.model.JobStatus.ASSIGNED);
         jobB.transition(com.doe.core.model.JobStatus.RUNNING);
         jobB.transition(com.doe.core.model.JobStatus.COMPLETED);
@@ -596,8 +596,8 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow in PAUSED rejects job ahead of dependency")
     void updateWorkflow_paused_jobAheadOfDep_throws() {
-        Job jobA = Job.newJob("a").build();
-        Job jobB = Job.newJob("b").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         // jobB depends on jobA, but jobB is COMPLETED while jobA is still PENDING
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB).dagIndex(1)
@@ -619,8 +619,8 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow in PAUSED accepts valid dependency ordering")
     void updateWorkflow_paused_validOrdering_succeeds() {
-        Job jobA = Job.newJob("a").build();
-        Job jobB = Job.newJob("b").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         // jobB depends on jobA, jobA is COMPLETED, jobB is PENDING — valid
         jobA.transition(com.doe.core.model.JobStatus.ASSIGNED);
         jobA.transition(com.doe.core.model.JobStatus.RUNNING);
@@ -650,12 +650,12 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("updateWorkflow in DRAFT with all PENDING jobs succeeds")
     void updateWorkflow_draft_allPending_succeeds() {
-        Job jobA = Job.newJob("a").build();
+        Job jobA = Job.newJob("a").timeoutMs(60000L).build();
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();
         Workflow workflow = createWorkflow("test", List.of(wjA));
         manager.registerWorkflow(workflow);
 
-        Job jobB = Job.newJob("b").build();
+        Job jobB = Job.newJob("b").timeoutMs(60000L).build();
         WorkflowJob wjB = WorkflowJob.fromJob(jobB).dagIndex(0).dependencies(List.of()).build();
         Workflow updated = Workflow.newWorkflow("test-updated")
                 .id(workflow.getId())
@@ -686,7 +686,7 @@ class WorkflowManagerTest {
     @Test
     @DisplayName("listWorkflows filters by status")
     void listWorkflows_filterByStatus() {
-        Job job = Job.newJob("echo").build();
+        Job job = Job.newJob("echo").timeoutMs(60000L).build();
         WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
         Workflow w1 = createWorkflow("w1", List.of(wj));
         Workflow w2 = createWorkflow("w2", List.of(wj));
@@ -753,7 +753,7 @@ class WorkflowManagerTest {
         IntStream.range(0, count).forEach(i -> {
             executor.execute(() -> {
                 try {
-                    Job job = Job.newJob("job-" + i).build();
+                    Job job = Job.newJob("job-" + i).timeoutMs(60000L).build();
                     WorkflowJob wj = WorkflowJob.fromJob(job).dagIndex(0).dependencies(List.of()).build();
                     Workflow workflow = createWorkflow("wf-" + i, List.of(wj));
                     manager.registerWorkflow(workflow);

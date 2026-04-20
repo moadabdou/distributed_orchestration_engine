@@ -45,7 +45,7 @@ class StartupRecoveryServiceTest {
     // ─── helper ──────────────────────────────────────────────────────────────
 
     private JobEntity makeEntity(UUID id, JobStatus status) {
-        JobEntity e = new JobEntity(id, status, "{\"type\":\"test\"}", Instant.now(), Instant.now());
+        JobEntity e = new JobEntity(id, status, "{\"type\":\"test\"}", 60000L, "test", Instant.now(), Instant.now());
         if (status == JobStatus.ASSIGNED) e.setWorkerId(UUID.randomUUID());
         return e;
     }

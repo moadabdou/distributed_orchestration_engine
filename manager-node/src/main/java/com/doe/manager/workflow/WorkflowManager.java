@@ -299,11 +299,12 @@ public class WorkflowManager {
     // ──── Resume ────────────────────────────────────────────────────────────
 
     /**
-     * Transitions a workflow from PAUSED → RUNNING.
+     * Transitions a workflow from PAUSED, COMPLETED or FAILED → RUNNING.
+     * This is used for resuming paused workflows or retrying failed jobs in terminal workflows.
      *
      * @param workflowId the ID of the workflow to resume
      * @return the updated workflow with RUNNING status
-     * @throws WorkflowException if workflow is not in PAUSED status
+     * @throws WorkflowException if workflow is not in a resumable status
      * @throws WorkflowException if workflow not found
      */
     public Workflow resumeWorkflow(UUID workflowId) {
@@ -313,10 +314,12 @@ public class WorkflowManager {
         try {
             Workflow workflow = getWorkflowLocked(workflowId);
 
-            if (workflow.getStatus() != WorkflowStatus.PAUSED) {
+            if (workflow.getStatus() != WorkflowStatus.PAUSED && 
+                workflow.getStatus() != WorkflowStatus.COMPLETED && 
+                workflow.getStatus() != WorkflowStatus.FAILED) {
                 throw new WorkflowException(
                         WorkflowErrorCode.WORKFLOW_NOT_PAUSED,
-                        "Can only resume workflows in PAUSED status, but workflow %s is %s"
+                        "Can only resume workflows in PAUSED, COMPLETED or FAILED status, but workflow %s is %s"
                                 .formatted(workflowId, workflow.getStatus()));
             }
 
@@ -565,7 +568,8 @@ public class WorkflowManager {
             case RUNNING    -> 2;
             case COMPLETED  -> 3;
             case FAILED     -> 3; // terminal, same level as completed
-            case CANCELLED  -> 3; // terminal, same level as completed
+            case CANCELLED  -> 3;
+            case SKIPPED    -> 3; // terminal
         };
     }
 
@@ -604,6 +608,7 @@ public class WorkflowManager {
                     LOG.info(String.format("resetJobStatuses: Resetting job %s (current status=%s) to PENDING", job.getId(), job.getStatus()));
                     Job resetJob = Job.newJob(job.getPayload())
                             .id(job.getId())
+                            .workflowId(job.getWorkflowId())
                             .status(JobStatus.PENDING)
                             .timeoutMs(job.getTimeoutMs())
                             .createdAt(job.getCreatedAt())

@@ -1,5 +1,7 @@
 package com.doe.manager.recovery;
 
+import org.springframework.test.context.ActiveProfiles;
+
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
 import com.doe.core.registry.JobRegistry;
@@ -46,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>
  * Scenario: Manager process crash while jobs are in-flight → restart → zero jobs lost.
  */
+@ActiveProfiles("test")
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -157,9 +160,9 @@ class ManagerCrashRecoveryEndToEndTest {
         // Submit 10 sleep jobs (long enough that some will be RUNNING when we crash)
         List<Job> jobs = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            Job job = Job.newJob("{\"type\":\"sleep\",\"ms\":2000}").build();
+            Job job = Job.newJob("{\"type\":\"sleep\",\"ms\":2000}").timeoutMs(60000L).build();
             jobs.add(job);
-            JobEntity entity = new JobEntity(job.getId(), job.getStatus(), job.getPayload(), job.getCreatedAt(), job.getUpdatedAt());
+            JobEntity entity = new JobEntity(job.getId(), job.getStatus(), job.getPayload(), job.getTimeoutMs(), "test", job.getCreatedAt(), job.getUpdatedAt());
             jobRepository.save(entity);
             jobQueue.enqueue(job);
         }

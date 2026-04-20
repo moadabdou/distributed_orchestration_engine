@@ -232,6 +232,6 @@ class DatabaseEventListenerTest {
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private JobEntity jobEntity(UUID id, JobStatus status) {
-        return new JobEntity(id, status, "{}", Instant.now(), Instant.now());
+        return new JobEntity(id, status, "{}", 60000L, "test-label", Instant.now(), Instant.now());
     }
 }

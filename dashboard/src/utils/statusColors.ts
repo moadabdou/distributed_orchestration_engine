@@ -12,6 +12,8 @@ export const getJobStatusColor = (status: string): string => {
       return 'bg-red-100 text-red-800 border-red-200';
     case 'CANCELLED':
       return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'SKIPPED':
+      return 'bg-indigo-100 text-indigo-800 border-indigo-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }

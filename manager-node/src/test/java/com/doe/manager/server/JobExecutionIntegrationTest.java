@@ -76,7 +76,7 @@ class JobExecutionIntegrationTest {
      * Returns the job so callers can inspect final state.
      */
     private Job submitAndAwait(String payload, JobStatus... expectedStatuses) throws InterruptedException {
-        Job job = Job.newJob(payload).build();
+        Job job = Job.newJob(payload).timeoutMs(60000L).build();
         server.getJobScheduler().getQueue().enqueue(job);
 
         long deadline = System.currentTimeMillis() + 10_000;
@@ -138,7 +138,7 @@ class JobExecutionIntegrationTest {
     @DisplayName("job briefly transitions through RUNNING before COMPLETED")
     void jobRunning_transitionObserved() throws Exception {
         // We observe RUNNING in-flight by polling rapidly on a longer task
-        Job job = Job.newJob("{\"type\":\"sleep\",\"ms\":500}").build();
+        Job job = Job.newJob("{\"type\":\"sleep\",\"ms\":500}").timeoutMs(60000L).build();
         server.getJobScheduler().getQueue().enqueue(job);
 
         // Poll for RUNNING status
@@ -188,9 +188,9 @@ class JobExecutionIntegrationTest {
         assertEquals(0, server.getRegistry().size(), "No workers should be registered");
 
         // Submit 3 jobs
-        Job j1 = Job.newJob("{\"type\":\"echo\",\"data\":\"one\"}").build();
-        Job j2 = Job.newJob("{\"type\":\"echo\",\"data\":\"two\"}").build();
-        Job j3 = Job.newJob("{\"type\":\"echo\",\"data\":\"three\"}").build();
+        Job j1 = Job.newJob("{\"type\":\"echo\",\"data\":\"one\"}").timeoutMs(60000L).build();
+        Job j2 = Job.newJob("{\"type\":\"echo\",\"data\":\"two\"}").timeoutMs(60000L).build();
+        Job j3 = Job.newJob("{\"type\":\"echo\",\"data\":\"three\"}").timeoutMs(60000L).build();
         server.getJobScheduler().getQueue().enqueue(j1);
         server.getJobScheduler().getQueue().enqueue(j2);
         server.getJobScheduler().getQueue().enqueue(j3);

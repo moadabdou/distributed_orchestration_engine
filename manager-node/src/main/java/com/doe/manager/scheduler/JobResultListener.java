@@ -6,6 +6,7 @@ import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
 import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.workflow.WorkflowManager;
+import com.doe.manager.workflow.WorkflowEventListener;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +40,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * safety guarantees.
  */
 @Component
-public class JobResultListener implements EngineEventListener, com.doe.manager.workflow.WorkflowEventListener {
+public class JobResultListener implements EngineEventListener, WorkflowEventListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(JobResultListener.class);
 
@@ -60,12 +61,12 @@ public class JobResultListener implements EngineEventListener, com.doe.manager.w
     // ──── EngineEventListener implementation ─────────────────────────────────
 
     @Override
-    public void onJobCompleted(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobCompleted(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         handleJobTerminalEvent(jobId, JobStatus.COMPLETED);
     }
 
     @Override
-    public void onJobFailed(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobFailed(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         handleJobTerminalEvent(jobId, JobStatus.FAILED);
     }
 
@@ -80,7 +81,7 @@ public class JobResultListener implements EngineEventListener, com.doe.manager.w
     }
 
     @Override
-    public void onJobCancelled(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobCancelled(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         handleJobTerminalEvent(jobId, JobStatus.CANCELLED);
     }
 
@@ -106,6 +107,12 @@ public class JobResultListener implements EngineEventListener, com.doe.manager.w
     @Override
     public void onWorkerDied(UUID workerId) {
         // Not relevant for DAG scheduling — CrashRecoveryHandler handles this
+    }
+
+    @Override
+    public void onJobSkipped(UUID jobId, Instant updatedAt) {
+        // No-op — skipping is a result of workflow termination or blocking,
+        // re-evaluation is already handled or not needed.
     }
 
     // ──── Internal logic ─────────────────────────────────────────────────────

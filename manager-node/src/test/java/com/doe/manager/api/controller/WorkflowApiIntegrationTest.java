@@ -1,5 +1,7 @@
 package com.doe.manager.api.controller;
 
+import org.springframework.test.context.ActiveProfiles;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,11 +23,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Full-stack integration tests for the Workflow REST API.
  *
- * <p>Uses {@code @SpringBootTest(webEnvironment = RANDOM_PORT)} so all layers —
+ * <p>Uses {@code @ActiveProfiles("test")
+@SpringBootTest(webEnvironment = RANDOM_PORT)} so all layers —
  * controller, service, WorkflowManager, persistence, Flyway — are active.
  * A real PostgreSQL container is started via Testcontainers.
  */
 @Testcontainers
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WorkflowApiIntegrationTest {
 

@@ -33,6 +33,7 @@ import java.util.UUID;
  *   <tr><td>orchestration.jobs.cancelled</td><td>Counter</td><td>Total jobs cancelled</td></tr>
  *   <tr><td>orchestration.jobs.assigned</td><td>Counter</td><td>Total jobs assigned to workers</td></tr>
  *   <tr><td>orchestration.jobs.requeued</td><td>Counter</td><td>Total jobs re-queued due to crash or timeout</td></tr>
+ *   <tr><td>orchestration.jobs.skipped</td><td>Counter</td><td>Total jobs skipped due to blocked dependencies</td></tr>
  *   <tr><td>orchestration.jobs.retries</td><td>Counter</td><td>Total retry attempts across all jobs</td></tr>
  *   <tr><td>orchestration.jobs.duration</td><td>Timer</td><td>Job execution duration distribution (ms)</td></tr>
  *   <tr><td>orchestration.jobs.queue.pending</td><td>Gauge</td><td>Current pending queue depth</td></tr>
@@ -61,6 +62,7 @@ public class MetricsService implements EngineEventListener {
     private Counter jobsCancelledCounter;
     private Counter jobsAssignedCounter;
     private Counter jobsRequeuedCounter;
+    private Counter jobsSkippedCounter;
     private Counter jobRetriesCounter;
 
     // Timer — tracks job execution duration
@@ -108,6 +110,10 @@ public class MetricsService implements EngineEventListener {
 
         jobsRequeuedCounter = Counter.builder(NAMESPACE + ".jobs.requeued")
                 .description("Total jobs re-queued due to crash or timeout")
+                .register(registry);
+
+        jobsSkippedCounter = Counter.builder(NAMESPACE + ".jobs.skipped")
+                .description("Total jobs skipped due to blocked dependencies")
                 .register(registry);
 
         jobRetriesCounter = Counter.builder(NAMESPACE + ".jobs.retries")
@@ -182,19 +188,19 @@ public class MetricsService implements EngineEventListener {
     }
 
     @Override
-    public void onJobCompleted(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobCompleted(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         jobsCompletedCounter.increment();
         recordJobDuration(jobId, updatedAt);
     }
 
     @Override
-    public void onJobFailed(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobFailed(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         jobsFailedCounter.increment();
         recordJobDuration(jobId, updatedAt);
     }
 
     @Override
-    public void onJobCancelled(UUID jobId, UUID workerId, String result, Instant updatedAt) {
+    public void onJobCancelled(UUID jobId, UUID workerId, String summary, Instant updatedAt) {
         jobsCancelledCounter.increment();
         recordJobDuration(jobId, updatedAt);
     }
@@ -203,6 +209,12 @@ public class MetricsService implements EngineEventListener {
     public void onJobRequeued(UUID jobId, int retryCount, Instant updatedAt) {
         jobsRequeuedCounter.increment();
         jobRetriesCounter.increment();
+        jobStartTimes.remove(jobId);
+    }
+
+    @Override
+    public void onJobSkipped(UUID jobId, Instant updatedAt) {
+        jobsSkippedCounter.increment();
         jobStartTimes.remove(jobId);
     }
 

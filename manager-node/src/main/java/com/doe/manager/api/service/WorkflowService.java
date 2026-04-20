@@ -36,29 +36,43 @@ public class WorkflowService {
     private final WorkflowManager workflowManager;
     private final WorkflowRepository workflowRepository;
     private final JobRepository jobRepository;
+    private final com.doe.manager.workflow.XComService xComService;
+    private final long defaultJobTimeoutMs;
 
     public WorkflowService(
             WorkflowManager workflowManager,
             WorkflowRepository workflowRepository,
-            JobRepository jobRepository) {
+            JobRepository jobRepository,
+            com.doe.manager.workflow.XComService xComService,
+            @org.springframework.beans.factory.annotation.Value("${doe.workflow.default-job-timeout-ms:600000}") long defaultJobTimeoutMs) {
         this.workflowManager = workflowManager;
         this.workflowRepository = workflowRepository;
         this.jobRepository = jobRepository;
+        this.xComService = xComService;
+        this.defaultJobTimeoutMs = defaultJobTimeoutMs;
     }
 
     // ── Create ───────────────────────────────────────────────────────────────
+
 
     @Transactional
     public WorkflowResponse createWorkflow(CreateWorkflowRequest req) {
         validateCreateRequest(req);
 
+        // Generate workflow ID upfront so we can link jobs to it
+        UUID workflowId = UUID.randomUUID();
+
         // Build a label → Job map (preserving insertion order for dagIndex)
         Map<String, Job> labelToJob = new LinkedHashMap<>();
-        List<CreateWorkflowRequest.JobDefinition> jobDefs = req.jobs();
-        for (CreateWorkflowRequest.JobDefinition def : jobDefs) {
+        List<com.doe.core.executor.JobDefinition> jobDefs = req.jobs();
+        for (com.doe.core.executor.JobDefinition def : jobDefs) {
+            // If type is not provided at top level, it might be in the payload (legacy)
+            // But we prefer it from the definition
             Job job = Job.newJob(def.payload())
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 60000L)
-                    .retryCount(def.retryCount() != null ? def.retryCount() : 0)
+                    .workflowId(workflowId)
+                    .timeoutMs(def.timeoutMs() > 0 ? def.timeoutMs() : defaultJobTimeoutMs)
+                    .retryCount(def.retryCount() > 0 ? def.retryCount() : 0)
+                    .jobLabel(def.label())
                     .build();
             labelToJob.put(def.label(), job);
         }
@@ -85,7 +99,7 @@ public class WorkflowService {
         }
 
         // Build WorkflowJobs
-        Workflow.Builder builder = Workflow.newWorkflow(req.name());
+        Workflow.Builder builder = Workflow.newWorkflow(req.name()).id(workflowId);
         int idx = 0;
         for (Map.Entry<String, Job> entry : labelToJob.entrySet()) {
             String label = entry.getKey();
@@ -160,7 +174,36 @@ public class WorkflowService {
         workflowManager.deleteWorkflow(id);
     }
 
+    // ── XCom ─────────────────────────────────────────────────────────────────
+
+    @Transactional
+    public void clearXComHistory(UUID id) {
+        // 1. Check if workflow is in memory
+        Workflow w = workflowManager.getWorkflow(id);
+        WorkflowStatus status;
+
+        if (w != null) {
+            status = w.getStatus();
+        } else {
+            // 2. Fall back to DB
+            WorkflowEntity entity = workflowRepository.findById(id)
+                    .orElseThrow(() -> new WorkflowException(WorkflowErrorCode.WORKFLOW_NOT_FOUND,
+                            "Workflow not found: " + id));
+            status = entity.getStatus();
+        }
+
+        // 3. Refuse if RUNNING
+        if (status == WorkflowStatus.RUNNING) {
+            throw new WorkflowException(WorkflowErrorCode.WORKFLOW_RUNNING,
+                    "Cannot clear XCom history while the workflow is RUNNING. Pause or stop it first.");
+        }
+
+        // 4. Delegate to XComService
+        xComService.deleteXComsByWorkflowId(id);
+    }
+
     // ── Lifecycle controls ───────────────────────────────────────────────────
+
 
     @Transactional
     public WorkflowResponse executeWorkflow(UUID id) {
@@ -177,8 +220,33 @@ public class WorkflowService {
         return toResponse(workflowManager.resumeWorkflow(id));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    private com.doe.manager.server.ManagerServer managerServer;
+
     @Transactional
     public WorkflowResponse resetWorkflow(UUID id) {
+        Workflow workflow = workflowManager.getWorkflow(id);
+        if (workflow != null) {
+            for (WorkflowJob wj : workflow.getJobs()) {
+                Job job = wj.getJob();
+                if (job.getStatus() == JobStatus.RUNNING || job.getStatus() == JobStatus.ASSIGNED) {
+                    if (managerServer != null) {
+                        managerServer.getJobRegistry().get(job.getId()).ifPresent(regJob -> {
+                            UUID workerId = regJob.getAssignedWorkerId();
+                            if (workerId != null) {
+                                managerServer.sendCancelJob(workerId, job.getId());
+                            }
+                        });
+                        // Fallback check
+                        JobEntity entity = jobRepository.findById(job.getId()).orElse(null);
+                        if (entity != null && entity.getWorkerId() != null) {
+                            managerServer.sendCancelJob(entity.getWorkerId(), job.getId());
+                        }
+                    }
+                }
+            }
+        }
         return toResponse(workflowManager.resetWorkflow(id));
     }
 
@@ -195,16 +263,18 @@ public class WorkflowService {
         List<DagGraphResponse.DagNodeResponse> nodes = w.getJobs().stream()
                 .map(wj -> {
                     Job job = wj.getJob();
-                    // Enrich from DB for result/workerId
+                    // Enrich from DB for status/result/workerId
                     JobEntity entity = jobRepository.findById(job.getId()).orElse(null);
                     return new DagGraphResponse.DagNodeResponse(
                             job.getId(),
-                            "job-" + wj.getDagIndex(),   // label (no label field in domain; use index-based)
+                            job.getJobLabel() != null ? job.getJobLabel() : "job-" + wj.getDagIndex(),
                             wj.getDagIndex(),
-                            job.getStatus(),
+                            entity != null ? entity.getStatus() : job.getStatus(),
                             job.getPayload(),
                             entity != null ? entity.getResult() : null,
                             entity != null ? entity.getWorkerId() : null,
+                            job.getTimeoutMs(),
+                            job.getJobLabel(),
                             job.getCreatedAt(),
                             job.getUpdatedAt()
                     );
@@ -230,7 +300,7 @@ public class WorkflowService {
         }
         // Check all labels are unique
         Set<String> seen = new HashSet<>();
-        for (CreateWorkflowRequest.JobDefinition def : req.jobs()) {
+        for (com.doe.core.executor.JobDefinition def : req.jobs()) {
             if (def.label() == null || def.label().isBlank()) {
                 throw new IllegalArgumentException("Each job must have a non-blank label");
             }
@@ -249,10 +319,12 @@ public class WorkflowService {
      */
     private Workflow buildWorkflowDomain(UUID workflowId, CreateWorkflowRequest req) {
         Map<String, Job> labelToJob = new LinkedHashMap<>();
-        for (CreateWorkflowRequest.JobDefinition def : req.jobs()) {
+        for (com.doe.core.executor.JobDefinition def : req.jobs()) {
             Job job = Job.newJob(def.payload())
-                    .timeoutMs(def.timeoutMs() != null ? def.timeoutMs() : 60000L)
-                    .retryCount(def.retryCount() != null ? def.retryCount() : 0)
+                    .workflowId(workflowId)
+                    .timeoutMs(def.timeoutMs() > 0 ? def.timeoutMs() : defaultJobTimeoutMs)
+                    .retryCount(def.retryCount() > 0 ? def.retryCount() : 0)
+                    .jobLabel(def.label())
                     .build();
             labelToJob.put(def.label(), job);
         }

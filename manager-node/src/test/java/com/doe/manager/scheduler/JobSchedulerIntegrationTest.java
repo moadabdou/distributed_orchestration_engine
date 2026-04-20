@@ -105,7 +105,7 @@ class JobSchedulerIntegrationTest {
             // 2. Enqueue 5 jobs
             JobQueue queue = server.getJobScheduler().getQueue();
             for (int i = 0; i < 5; i++) {
-                queue.enqueue(Job.newJob("{\"cmd\":\"task-" + i + "\"}").build());
+                queue.enqueue(Job.newJob("{\"cmd\":\"task-" + i + "\"}").timeoutMs(60000L).build());
             }
 
             // 3. Each worker reads ASSIGN_JOB messages; after each one it frees capacity
@@ -164,7 +164,7 @@ class JobSchedulerIntegrationTest {
             });
 
             // 2. Enqueue 1 job — should be re-queued initially
-            server.getJobScheduler().getQueue().enqueue(Job.newJob("{\"cmd\":\"pending\"}").build());
+            server.getJobScheduler().getQueue().enqueue(Job.newJob("{\"cmd\":\"pending\"}").timeoutMs(60000L).build());
 
             // 3. Free the worker after 300ms — scheduler should then assign
             Thread.ofVirtual().start(() -> {
@@ -214,7 +214,7 @@ class JobSchedulerIntegrationTest {
             JobQueue queue = server.getJobScheduler().getQueue();
             List<Job> jobs = new ArrayList<>();
             for (int i = 0; i < 3; i++) {
-                Job job = Job.newJob("{\"cmd\":\"seq-task-" + i + "\"}").build();
+                Job job = Job.newJob("{\"cmd\":\"seq-task-" + i + "\"}").timeoutMs(60000L).build();
                 jobs.add(job);
                 queue.enqueue(job);
             }
@@ -328,7 +328,7 @@ class JobSchedulerIntegrationTest {
             
             for (int i = 0; i < numJobs; i++) {
                 Thread.ofVirtual().start(() -> {
-                    queue.enqueue(Job.newJob("{\"cmd\":\"high-throughput\"}").build());
+                    queue.enqueue(Job.newJob("{\"cmd\":\"high-throughput\"}").timeoutMs(60000L).build());
                 });
             }
 
@@ -373,7 +373,7 @@ class JobSchedulerIntegrationTest {
             });
 
             for (int i = 0; i < numJobs; i++) {
-                queue.enqueue(Job.newJob("{\"cmd\":\"backpressure\"}").build());
+                queue.enqueue(Job.newJob("{\"cmd\":\"backpressure\"}").timeoutMs(60000L).build());
             }
 
             org.awaitility.Awaitility.await().atMost(5, TimeUnit.SECONDS).until(() -> assigned.get() == 4);
@@ -423,7 +423,7 @@ class JobSchedulerIntegrationTest {
         
         // Enqueue jobs
         for (int i = 0; i < numJobs; i++) {
-            Job j = Job.newJob("{\"cmd\":\"churn\"}").build();
+            Job j = Job.newJob("{\"cmd\":\"churn\"}").timeoutMs(60000L).build();
             queue.enqueue(j);
             enqueuedIds.add(j.getId());
         }
@@ -580,7 +580,7 @@ class JobSchedulerIntegrationTest {
             
             JobQueue queue = server.getJobScheduler().getQueue();
             for (int i = 0; i < numJobs; i++) {
-                queue.enqueue(Job.newJob("{\"cmd\":\"dist-test\"}").build());
+                queue.enqueue(Job.newJob("{\"cmd\":\"dist-test\"}").timeoutMs(60000L).build());
             }
 
             assertTrue(latch.await(30, TimeUnit.SECONDS), "Distribution test did not complete in time");
@@ -671,7 +671,7 @@ class JobSchedulerIntegrationTest {
             JobQueue queue = server.getJobScheduler().getQueue();
             List<Job> jobs = new ArrayList<>();
             for (int i = 0; i < numJobs; i++) {
-                Job job = Job.newJob("{\"cmd\":\"rapid-" + i + "\"}").build();
+                Job job = Job.newJob("{\"cmd\":\"rapid-" + i + "\"}").timeoutMs(60000L).build();
                 jobs.add(job);
                 queue.enqueue(job);
             }

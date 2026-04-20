@@ -156,6 +156,9 @@ public class JobScheduler {
                 // so the worker can echo jobId back in JOB_RUNNING and JOB_RESULT.
                 JsonObject envelope = new JsonObject();
                 envelope.addProperty("jobId", job.getId().toString());
+                if (job.getWorkflowId() != null) {
+                    envelope.addProperty("workflowId", job.getWorkflowId().toString());
+                }
                 envelope.addProperty("timeoutMs", job.getTimeoutMs());
                 // Embed the original payload as a nested JSON element (not a double-encoded string)
                 envelope.add("payload", JsonParser.parseString(job.getPayload()));

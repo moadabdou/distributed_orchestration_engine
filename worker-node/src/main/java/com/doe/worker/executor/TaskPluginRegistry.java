@@ -1,80 +1,88 @@
 package com.doe.worker.executor;
 
+import com.doe.core.executor.ExecutionContext;
+import com.doe.core.executor.JobDefinition;
 import com.doe.core.executor.TaskExecutor;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
- * A thread-safe registry that maps task-type strings to {@link TaskExecutor} plugins
- * and dispatches job execution to the appropriate plugin.
- *
- * <h2>Usage</h2>
- * <pre>
- * TaskPluginRegistry registry = new TaskPluginRegistry();
- * registry.register("echo", new EchoPlugin());
- * registry.register("bash", new ShellScriptPlugin());
- *
- * String result = registry.execute("{\"type\":\"echo\",\"data\":\"hi\"}");
- * </pre>
- *
- * <h2>Type selection</h2>
- * The {@code "type"} field is intentionally extracted <em>only at execution time</em>,
- * keeping the payload opaque to the manager, transport, and database layers.
- * This allows the schema and protocol to remain type-agnostic.
+ * A thread-safe registry that discovers {@link TaskExecutor} implementations via SPI
+ * and provides fresh instances for each job execution.
  */
 public class TaskPluginRegistry {
 
-    private static final Gson GSON = new Gson();
+    private static final Logger LOG = LoggerFactory.getLogger(TaskPluginRegistry.class);
 
-    private final ConcurrentMap<String, TaskExecutor> plugins = new ConcurrentHashMap<>();
+    // Maps type string to the SPI provider
+    private final ConcurrentMap<String, ServiceLoader.Provider<TaskExecutor>> providers = new ConcurrentHashMap<>();
 
-    /**
-     * Registers a plugin for the given type key.
-     * If a plugin was already registered for that key, it is replaced.
-     *
-     * @param type   the value of the {@code "type"} field in job payloads
-     * @param plugin the executor to invoke for jobs of that type
-     * @return this registry (for fluent chaining)
-     */
-    public TaskPluginRegistry register(String type, TaskExecutor plugin) {
-        if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException("type must not be blank");
-        }
-        if (plugin == null) {
-            throw new IllegalArgumentException("plugin must not be null");
-        }
-        plugins.put(type, plugin);
-        return this;
+    public TaskPluginRegistry() {
+        loadPlugins();
+    }
+
+    private void loadPlugins() {
+        ServiceLoader<TaskExecutor> loader = ServiceLoader.load(TaskExecutor.class);
+        loader.stream().forEach(provider -> {
+            // We need an instance just to get the type, then we store the provider
+            TaskExecutor instance = provider.get();
+            String type = instance.getType();
+            if (type != null && !type.isBlank()) {
+                providers.put(type, provider);
+                LOG.info("Discovered executor plugin: {} -> {}", type, instance.getClass().getSimpleName());
+            }
+        });
     }
 
     /**
-     * Executes the job described by {@code payloadJson} using the plugin registered
-     * for the payload's {@code "type"} field.
+     * Returns a fresh instance of the executor for the given type.
      *
-     * @param payloadJson a JSON object containing at least a {@code "type"} field
+     * @param type the executor type
+     * @return an Optional containing a new TaskExecutor instance, or empty if not found
+     */
+    public Optional<TaskExecutor> getExecutor(String type) {
+        return Optional.ofNullable(providers.get(type)).map(ServiceLoader.Provider::get);
+    }
+
+    /**
+     * Executes the job defined by {@code definition} using a fresh plugin instance.
+     * 
+     * <p>Note: Regular callers in the worker should probably use {@link #getExecutor(String)}
+     * and call execute themselves if they need to track the instance for cancellation.
+     *
+     * @param definition task metadata and payload
+     * @param context    execution environment and utilities
      * @return the result string produced by the plugin
-     * @throws IllegalArgumentException  if the payload is not valid JSON or has no {@code "type"} field
-     * @throws UnknownTaskTypeException  if no plugin is registered for the payload's type
+     * @throws UnknownTaskTypeException  if no plugin is registered for the type
      * @throws Exception                 if the plugin itself throws
      */
-    public String execute(String payloadJson) throws Exception {
-        JsonObject json = GSON.fromJson(payloadJson, JsonObject.class);
+    public String execute(ExecutionContext context) throws Exception {
+        JobDefinition definition = context.getDefinition();
+        TaskExecutor plugin = getExecutor(definition.type())
+                .orElseThrow(() -> new UnknownTaskTypeException(definition.type()));
 
-        if (json == null || !json.has("type")) {
-            throw new IllegalArgumentException(
-                    "Job payload must be a JSON object with a 'type' field; got: " + payloadJson);
-        }
+        return plugin.execute(context);
+    }
 
-        String type = json.get("type").getAsString();
-        TaskExecutor plugin = plugins.get(type);
+    /**
+     * Registers a plugin instance manually (primarily for testing).
+     * 
+     * @param type   the executor type
+     * @param plugin the executor instance
+     * @return this registry
+     */
+    public TaskPluginRegistry register(String type, TaskExecutor plugin) {
+        providers.put(type, new StaticProvider(plugin));
+        return this;
+    }
 
-        if (plugin == null) {
-            throw new UnknownTaskTypeException(type);
-        }
-
-        return plugin.execute(payloadJson);
+    private static record StaticProvider(TaskExecutor instance) implements ServiceLoader.Provider<TaskExecutor> {
+        @Override public Class<? extends TaskExecutor> type() { return instance.getClass(); }
+        @Override public TaskExecutor get() { return instance; }
     }
 }

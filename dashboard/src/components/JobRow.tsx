@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import type { Job } from '../types/api';
-import { cancelJob } from '../api/jobs';
+import { cancelJob, retryJob, getJobLogsUrl } from '../api/jobs';
 import { useQueryClient } from '@tanstack/react-query';
-import { Box, PlaySquare, CheckSquare, XSquare, Clock, ChevronDown, ChevronRight, HardDrive, MoreVertical, XCircle, Trash2 } from 'lucide-react';
+import { Box, PlaySquare, CheckSquare, XSquare, Clock, ChevronDown, ChevronRight, HardDrive, MoreVertical, XCircle, Trash2, ExternalLink, FileText, RotateCcw, SkipForward } from 'lucide-react';
 import { getWorkerTheme } from '../utils/workerColors';
 
 interface JobRowProps {
@@ -14,6 +14,7 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   
   const queryClient = useQueryClient();
 
@@ -27,16 +28,36 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
     setIsCancelling(true);
     try {
       await cancelJob(job.id);
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      queryClient.invalidateQueries({ queryKey: ['jobsList'] });
-      queryClient.invalidateQueries({ queryKey: ['systemStats'] });
-      queryClient.invalidateQueries({ queryKey: ['activityFeed'] });
+      invalidateQueries();
     } catch (error) {
       console.error('Failed to cancel job:', error);
     } finally {
       setIsCancelling(false);
       setIsCancelModalOpen(false);
     }
+  };
+
+  const handleRetryClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDropdownOpen(false);
+    setIsRetrying(true);
+    try {
+      await retryJob(job.id);
+      invalidateQueries();
+    } catch (error) {
+      console.error('Failed to retry job:', error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const invalidateQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    queryClient.invalidateQueries({ queryKey: ['jobsList'] });
+    queryClient.invalidateQueries({ queryKey: ['systemStats'] });
+    queryClient.invalidateQueries({ queryKey: ['activityFeed'] });
+    queryClient.invalidateQueries({ queryKey: ['workflows'] });
+    queryClient.invalidateQueries({ queryKey: ['workflow', job.workflowId] });
   };
 
   // Derive a pseudo progress value based on status
@@ -67,6 +88,10 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
     case 'CANCELLED':
       progress = 100;
       statusTheme = { text: 'text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800', bar: 'from-slate-300 to-slate-400', icon: XCircle };
+      break;
+    case 'SKIPPED':
+      progress = 100;
+      statusTheme = { text: 'text-indigo-400', bg: 'bg-indigo-100 dark:bg-indigo-950/30', bar: 'from-indigo-300 to-indigo-400', icon: SkipForward };
       break;
   }
 
@@ -160,7 +185,27 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
                     className="fixed inset-0 z-10" 
                     onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(false); }} 
                   />
-                  <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-100">
+                    <a
+                      href={getJobLogsUrl(job.id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FileText className="w-4 h-4" />
+                      View Logs
+                    </a>
+                    {(job.status === 'FAILED' || job.status === 'CANCELLED') && (
+                      <button
+                        onClick={handleRetryClick}
+                        disabled={isRetrying}
+                        className="w-full px-4 py-2 text-left text-sm flex items-center gap-2 text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20 cursor-pointer disabled:opacity-50"
+                      >
+                        <RotateCcw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                        {isRetrying ? 'Retrying...' : 'Retry Job'}
+                      </button>
+                    )}
                     <button
                       onClick={handleCancelClick}
                       disabled={!isCancelable}
@@ -191,7 +236,19 @@ const JobRow: React.FC<JobRowProps> = ({ job }) => {
               </pre>
             </div>
             <div>
-              <div className="font-semibold text-slate-600 dark:text-slate-400 mb-1">Result</div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-semibold text-slate-600 dark:text-slate-400">Result</div>
+                <a 
+                  href={getJobLogsUrl(job.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 hover:underline font-semibold"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Full Logs
+                </a>
+              </div>
               <pre className="bg-slate-800/80 backdrop-blur text-purple-200 p-3 rounded-xl overflow-x-auto custom-scrollbar font-mono shadow-inner border border-slate-700/50">
                 {job.result ? (typeof job.result === 'object' ? JSON.stringify(job.result, null, 2) : job.result) : 'No result yet.'}
               </pre>

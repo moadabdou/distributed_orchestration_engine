@@ -1,5 +1,7 @@
 package com.doe.manager.api.controller;
 
+import org.springframework.test.context.ActiveProfiles;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,10 +27,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * via full HTTP request/response with real persistence (Testcontainers).
  */
 @Testcontainers
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WorkflowErrorHandlingTest {
 
-    @Container
+    @SuppressWarnings("resource")
+@Container
     static PostgreSQLContainer<?> postgres =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:15-alpine"))
                     .withDatabaseName("doe-manager")

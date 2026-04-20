@@ -130,6 +130,8 @@ public class WorkflowPersistenceListener implements WorkflowEventListener {
                     job.getId(),
                     job.getStatus(),
                     job.getPayload(),
+                    job.getTimeoutMs(),
+                    job.getJobLabel(),
                     job.getCreatedAt(),
                     job.getUpdatedAt() != null ? job.getUpdatedAt() : Instant.now()
             );
@@ -178,7 +180,7 @@ public class WorkflowPersistenceListener implements WorkflowEventListener {
         for (WorkflowJob wj : workflow.getJobs()) {
             Job job = wj.getJob();
             JobEntity je = jobRepository.findById(job.getId()).orElse(new JobEntity(
-                job.getId(), job.getStatus(), job.getPayload(), job.getCreatedAt(), Instant.now()
+                job.getId(), job.getStatus(), job.getPayload(), job.getTimeoutMs(), job.getJobLabel(), job.getCreatedAt(), Instant.now()
             ));
             je.setWorkflow(we);
             je.setDagIndex(wj.getDagIndex());

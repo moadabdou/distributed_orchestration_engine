@@ -26,17 +26,57 @@ RUN mvn -pl engine-core,worker-node -am package -Dmaven.test.skip=true \
     --batch-mode -q
 
 # ──────────────────────────────────────────────────────────────────
-# Stage 2 — Runtime (slim JRE image)
+# Stage 2 — Runtime (Debian-based JRE image for better compatibility with ML libs)
 # ──────────────────────────────────────────────────────────────────
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
+
+# Install Python 3, Bash, curl and required libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    bash \
+    curl \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip first to avoid issues with older versions
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install utility and database libraries separately
+RUN pip3 install --no-cache-dir \
+    requests \
+    sqlalchemy \
+    psycopg2-binary \
+    docker \
+    kubernetes \
+    papermill \
+    pandas \
+    minio \
+    numpy
+
+# Install ML libraries
+# We use the CPU version of torch to keep the image size manageable
+RUN pip3 install --no-cache-dir \
+    torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install high-level ML libs (depends on torch/numpy)
+RUN pip3 install --no-cache-dir \
+    scikit-learn \
+    transformers \
+    sentence-transformers
+
+# Pre-download the embedding model to avoid runtime downloads during tests
+RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Copy the fat JAR from the builder stage (explicit filename to avoid COPY glob ambiguity)
 COPY --from=builder /build/worker-node/target/worker-node-1.0.0-SNAPSHOT.jar app.jar
 
 # Create a non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 USER appuser
 
 # Expose nothing — workers initiate outbound TCP to manager only

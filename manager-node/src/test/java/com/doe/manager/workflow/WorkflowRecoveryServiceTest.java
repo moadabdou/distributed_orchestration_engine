@@ -85,12 +85,12 @@ class WorkflowRecoveryServiceTest {
         WorkflowEntity we1 = new WorkflowEntity(wf1Id, "wf-1", WorkflowStatus.RUNNING, now, now);
         workflowRepository.save(we1);
 
-        JobEntity je1 = new JobEntity(job1Id, JobStatus.COMPLETED, "{\"task\":\"t1\"}", now, now);
+        JobEntity je1 = new JobEntity(job1Id, JobStatus.COMPLETED, "{\"task\":\"t1\"}", 60000L, "t1", now, now);
         je1.setWorkflow(we1);
         je1.setDagIndex(0);
         jobRepository.save(je1);
 
-        JobEntity je2 = new JobEntity(job2Id, JobStatus.PENDING, "{\"task\":\"t2\"}", now, now);
+        JobEntity je2 = new JobEntity(job2Id, JobStatus.PENDING, "{\"task\":\"t2\"}", 60000L, "t2", now, now);
         je2.setWorkflow(we1);
         je2.setDagIndex(1);
         jobRepository.save(je2);

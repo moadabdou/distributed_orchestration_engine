@@ -1,5 +1,7 @@
 package com.doe.manager.recovery;
 
+import org.springframework.test.context.ActiveProfiles;
+
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.WorkerStatus;
 import com.doe.core.registry.JobRegistry;
@@ -33,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>{@code @DirtiesContext} ensures a fresh Spring context (and thus an empty registry
  * and queue) for each test method.
  */
+@ActiveProfiles("test")
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -60,7 +63,7 @@ class StartupRecoveryIntegrationTest {
 
     private JobEntity saveJob(UUID workerId, JobStatus status) {
         JobEntity e = new JobEntity(
-                UUID.randomUUID(), status, "{\"type\":\"test\"}", Instant.now(), Instant.now());
+                UUID.randomUUID(), status, "{\"type\":\"test\"}", 60000L, "test", Instant.now(), Instant.now());
         e.setWorkerId(workerId);
         return jobRepository.save(e);
     }

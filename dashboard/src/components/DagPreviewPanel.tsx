@@ -8,7 +8,10 @@ import { useWorkflowActions } from '../hooks/useWorkflowActions';
 import type { DagNode, DagEdge } from '../types/api';
 import { applyDagLayout } from '../utils/dagLayout';
 import CustomDagNode from './CustomDagNode';
-import { GripHorizontal, GitMerge, Play, Pause, RotateCcw, Trash2, Loader2 } from 'lucide-react';
+import { 
+  GripHorizontal, GitMerge, Play, Pause, RotateCcw, Trash2, Loader2,
+  CheckCircle2, XCircle, Clock, PlayCircle, SkipForward, Ban, List
+} from 'lucide-react';
 
 const nodeTypes = {
   customNode: CustomDagNode,
@@ -86,6 +89,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
           ...n,
           label: n.label || n.jobId,
           status: n.status || 'PENDING',
+          workflowId: dag.workflowId,
         },
       })));
       lastLaidOutJobIds.current = currentJobIds;
@@ -103,6 +107,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
                 status: newData.status || 'PENDING',
                 result: newData.result || null,
                 workerId: newData.workerId || null,
+                workflowId: dag.workflowId,
               },
             };
           }
@@ -162,6 +167,14 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
     setEdges(newEdges);
   }, [dag, setNodes, setEdges]);
 
+  // Handle 404 Not Found - clear memory and navigate home
+  useEffect(() => {
+    if (error && (error as any).status === 404) {
+      sessionStorage.removeItem('selectedWorkflowId');
+      navigate('/', { replace: true });
+    }
+  }, [error, navigate]);
+
   if (!workflowId) {
     return (
       <div className="glass-panel p-6 flex flex-col items-center justify-center text-center" style={{ height }}>
@@ -183,6 +196,16 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
     );
   }
 
+  const metrics = dag ? {
+    total: dag.nodes.length,
+    completed: dag.nodes.filter(n => n.status === 'COMPLETED').length,
+    failed: dag.nodes.filter(n => n.status === 'FAILED').length,
+    running: dag.nodes.filter(n => n.status === 'RUNNING').length,
+    pending: dag.nodes.filter(n => n.status === 'PENDING' || n.status === 'ASSIGNED').length,
+    skipped: dag.nodes.filter(n => n.status === 'SKIPPED').length,
+    cancelled: dag.nodes.filter(n => n.status === 'CANCELLED').length,
+  } : { total: 0, completed: 0, failed: 0, running: 0, pending: 0, skipped: 0, cancelled: 0 };
+
   return (
     <div className="flex flex-col gap-0">
       {/* DAG Canvas */}
@@ -191,7 +214,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
         style={{ height }}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-white/10 flex-shrink-0">
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-white/10 flex-shrink-0 bg-slate-900/40">
           <GitMerge className="w-4 h-4 text-violet-400" />
           <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 tracking-[0.15em] uppercase">
             {dag?.workflowName ?? 'Workflow'} — DAG Preview
@@ -253,8 +276,56 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
           )}
         </div>
 
+        {/* Workflow Specific Metrics Bar */}
+        <div className="flex items-center gap-4 px-5 py-2.5 bg-slate-900/60 border-b border-white/5 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800/40 border border-slate-700/50">
+            <List className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Total</span>
+            <span className="text-xs font-black text-slate-200 ml-1 font-mono">{metrics.total}</span>
+          </div>
+          
+          <div className="h-4 w-px bg-white/10" />
+
+          <MetricBadge 
+            icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />} 
+            label="Complete" 
+            count={metrics.completed} 
+            color="emerald" 
+          />
+          <MetricBadge 
+            icon={<PlayCircle className="w-3.5 h-3.5 text-amber-400" />} 
+            label="Running" 
+            count={metrics.running} 
+            color="amber" 
+          />
+          <MetricBadge 
+            icon={<Clock className="w-3.5 h-3.5 text-blue-400" />} 
+            label="Pending" 
+            count={metrics.pending} 
+            color="blue" 
+          />
+          <MetricBadge 
+            icon={<XCircle className="w-3.5 h-3.5 text-rose-400" />} 
+            label="Failed" 
+            count={metrics.failed} 
+            color="rose" 
+          />
+          <MetricBadge 
+            icon={<Ban className="w-3.5 h-3.5 text-slate-400" />} 
+            label="Cancelled" 
+            count={metrics.cancelled} 
+            color="slate" 
+          />
+          <MetricBadge 
+            icon={<SkipForward className="w-3.5 h-3.5 text-indigo-400" />} 
+            label="Skipped" 
+            count={metrics.skipped} 
+            color="indigo" 
+          />
+        </div>
+
         {/* Flow */}
-        <div style={{ height: 'calc(100% - 44px)' }}>
+        <div style={{ height: 'calc(100% - 84px)' }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -302,3 +373,29 @@ function getStatusChipStyle(status: string): string {
 }
 
 export default DagPreviewPanel;
+
+interface MetricBadgeProps {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  color: 'emerald' | 'rose' | 'amber' | 'blue' | 'indigo' | 'slate';
+}
+
+const MetricBadge: React.FC<MetricBadgeProps> = ({ icon, label, count, color }) => {
+  const themes = {
+    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    rose: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
+    amber: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+    blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+    indigo: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+    slate: 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+  };
+
+  return (
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border backdrop-blur-sm transition-all duration-300 ${themes[color]}`}>
+      {icon}
+      <span className="text-[10px] font-bold uppercase tracking-tight opacity-70 group-hover:opacity-100">{label}</span>
+      <span className="text-xs font-black ml-0.5 font-mono">{count}</span>
+    </div>
+  );
+};

@@ -69,18 +69,22 @@ public class Phase1SmokeTest {
         Job jobA = Job.newJob("task-A")
                 .id(jobIdA)
                 .status(JobStatus.PENDING)
+                .timeoutMs(60_000L)
                 .build();
         Job jobB = Job.newJob("task-B")
                 .id(jobIdB)
                 .status(JobStatus.PENDING)
+                .timeoutMs(60_000L)
                 .build();
         Job jobC = Job.newJob("task-C")
                 .id(jobIdC)
                 .status(JobStatus.PENDING)
+                .timeoutMs(60_000L)
                 .build();
         Job jobD = Job.newJob("task-D")
                 .id(jobIdD)
                 .status(JobStatus.PENDING)
+                .timeoutMs(60_000L)
                 .build();
 
         WorkflowJob wjA = WorkflowJob.fromJob(jobA).dagIndex(0).dependencies(List.of()).build();

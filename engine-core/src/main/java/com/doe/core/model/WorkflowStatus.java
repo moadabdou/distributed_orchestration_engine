@@ -30,21 +30,21 @@ public enum WorkflowStatus {
     PAUSED {
         @Override
         public boolean canTransitionTo(WorkflowStatus target) {
-            return target == RUNNING || target == FAILED;
+            return target == RUNNING || target == FAILED || target == DRAFT;
         }
     },
 
     COMPLETED {
         @Override
         public boolean canTransitionTo(WorkflowStatus target) {
-            return false;
+            return target == RUNNING || target == DRAFT;
         }
     },
 
     FAILED {
         @Override
         public boolean canTransitionTo(WorkflowStatus target) {
-            return false;
+            return target == RUNNING || target == DRAFT;
         }
     };
 

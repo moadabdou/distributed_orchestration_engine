@@ -71,10 +71,10 @@ public interface EngineEventListener {
      *
      * @param jobId     the completed job
      * @param workerId  the worker that executed this job (may be null if job was never assigned)
-     * @param result    the output string from the worker
+     * @param summary   the output string (summary) from the worker
      * @param updatedAt the timestamp recorded in the domain object
      */
-    void onJobCompleted(UUID jobId, UUID workerId, String result, Instant updatedAt);
+    void onJobCompleted(UUID jobId, UUID workerId, String summary, Instant updatedAt);
 
     /**
      * Fired when a job transitions to FAILED (worker reported failure, max retries
@@ -82,20 +82,20 @@ public interface EngineEventListener {
      *
      * @param jobId     the failed job
      * @param workerId  the worker that executed this job (may be null if job was never assigned)
-     * @param result    failure reason / worker output
+     * @param summary   failure reason / worker output summary
      * @param updatedAt the timestamp recorded in the domain object
      */
-    void onJobFailed(UUID jobId, UUID workerId, String result, Instant updatedAt);
+    void onJobFailed(UUID jobId, UUID workerId, String summary, Instant updatedAt);
 
     /**
      * Fired when a job transitions to CANCELLED.
      *
      * @param jobId     the cancelled job
      * @param workerId  the worker that was assigned (may be null if job was never assigned)
-     * @param result    reason for cancellation
+     * @param summary   reason for cancellation summary
      * @param updatedAt the timestamp recorded in the domain object
      */
-    void onJobCancelled(UUID jobId, UUID workerId, String result, Instant updatedAt);
+    void onJobCancelled(UUID jobId, UUID workerId, String summary, Instant updatedAt);
 
     /**
      * Fired whenever a job is re-inserted as PENDING — either by crash-recovery
@@ -106,4 +106,12 @@ public interface EngineEventListener {
      * @param updatedAt  the timestamp recorded in the domain object
      */
     void onJobRequeued(UUID jobId, int retryCount, Instant updatedAt);
+
+    /**
+     * Fired when a job is marked as SKIPPED because it was PENDING when the workflow terminated.
+     *
+     * @param jobId     the skipped job
+     * @param updatedAt the timestamp recorded in the domain object
+     */
+    void onJobSkipped(UUID jobId, Instant updatedAt);
 }

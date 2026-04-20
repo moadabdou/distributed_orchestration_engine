@@ -62,6 +62,7 @@ class Phase1IntegrationTest {
     private WorkflowJob makeJob(UUID id, String payload, List<UUID> dependencies) {
         Job job = Job.newJob(payload)
                 .id(id)
+                .timeoutMs(60000L)
                 .status(JobStatus.PENDING)
                 .build();
         return WorkflowJob.fromJob(job)

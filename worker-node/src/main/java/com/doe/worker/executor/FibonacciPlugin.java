@@ -1,5 +1,7 @@
 package com.doe.worker.executor;
 
+import com.doe.core.executor.ExecutionContext;
+import com.doe.core.executor.JobDefinition;
 import com.doe.core.executor.TaskExecutor;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -8,10 +10,9 @@ import com.google.gson.JsonObject;
  * Plugin for {@code "type": "fibonacci"} jobs.
  *
  * <p>Expected payload:
- * <pre>{ "type": "fibonacci", "n": 10 }</pre>
+ * <pre>{ "n": 10 }</pre>
  *
  * Computes the Nth Fibonacci number iteratively and returns it as a string.
- * Input is capped at {@value #FIB_MAX} to prevent absurdly long computations.
  */
 public class FibonacciPlugin implements TaskExecutor {
 
@@ -21,8 +22,14 @@ public class FibonacciPlugin implements TaskExecutor {
     public static final int FIB_MAX = 40;
 
     @Override
-    public String execute(String payload) {
-        JsonObject json = GSON.fromJson(payload, JsonObject.class);
+    public String getType() {
+        return "fibonacci";
+    }
+
+    @Override
+    public String execute(ExecutionContext context) {
+        JobDefinition definition = context.getDefinition();
+        JsonObject json = GSON.fromJson(definition.payload(), JsonObject.class);
         if (json == null || !json.has("n")) {
             throw new IllegalArgumentException("fibonacci payload requires an 'n' field");
         }
@@ -34,7 +41,22 @@ public class FibonacciPlugin implements TaskExecutor {
             throw new IllegalArgumentException(
                     "fibonacci 'n' must be \u2264 " + FIB_MAX + " to prevent excessive computation, got: " + n);
         }
+
+        context.log("Computing Fibonacci(" + n + ")");
         return String.valueOf(fib(n));
+    }
+
+    @Override
+    public void cancel() {
+        // Iterative computation is fast, no special cancellation needed
+    }
+
+    @Override
+    public void validate(JobDefinition definition) {
+        JsonObject json = GSON.fromJson(definition.payload(), JsonObject.class);
+        if (json == null || !json.has("n")) {
+            throw new IllegalArgumentException("fibonacci payload requires an 'n' field");
+        }
     }
 
     private static long fib(int n) {
