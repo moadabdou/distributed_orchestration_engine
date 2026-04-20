@@ -26,6 +26,8 @@ public record DagGraphResponse(
             String payload,
             String result,
             UUID workerId,
+            long timeoutMs,
+            String jobLabel,
             Instant createdAt,
             Instant updatedAt
     ) {}

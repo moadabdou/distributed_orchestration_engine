@@ -267,12 +267,14 @@ public class WorkflowService {
                     JobEntity entity = jobRepository.findById(job.getId()).orElse(null);
                     return new DagGraphResponse.DagNodeResponse(
                             job.getId(),
-                            "job-" + wj.getDagIndex(),   // label (no label field in domain; use index-based)
+                            job.getJobLabel() != null ? job.getJobLabel() : "job-" + wj.getDagIndex(),
                             wj.getDagIndex(),
                             entity != null ? entity.getStatus() : job.getStatus(),
                             job.getPayload(),
                             entity != null ? entity.getResult() : null,
                             entity != null ? entity.getWorkerId() : null,
+                            job.getTimeoutMs(),
+                            job.getJobLabel(),
                             job.getCreatedAt(),
                             job.getUpdatedAt()
                     );

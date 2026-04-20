@@ -66,6 +66,8 @@ export interface DagNode {
   payload: string;
   result: string | null;
   workerId: string | null;
+  timeoutMs: number;
+  jobLabel: string | null;
   createdAt: string;
   updatedAt: string;
   position?: { x: number; y: number };

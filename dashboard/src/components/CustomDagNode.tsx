@@ -11,6 +11,7 @@ interface CustomDagNodeProps {
     status: 'PENDING' | 'ASSIGNED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'SKIPPED';
     workflowId?: string;
     workerId?: string | null;
+    timeoutMs?: number;
     createdAt?: string;
     updatedAt?: string;
     result?: string | null;
@@ -200,15 +201,25 @@ const CustomDagNode: React.FC<CustomDagNodeProps> = ({ data }) => {
           
           <div className="space-y-1 mt-1">
             <div className="flex justify-between">
-              <span className="text-xs text-slate-500">ID</span>
-              <span className="text-xs text-slate-300 font-mono truncate max-w-[120px]">{data.jobId || data.label}</span>
+              <span className="text-xs text-slate-500">Node ID</span>
+              <span className="text-xs text-slate-300 font-mono truncate max-w-[120px]">{data.jobId}</span>
             </div>
+            {data.timeoutMs && (
+              <div className="flex justify-between">
+                <span className="text-xs text-slate-500">Timeout</span>
+                <span className="text-xs text-slate-300 font-mono">{formatDuration(data.timeoutMs)}</span>
+              </div>
+            )}
             {data.workerId && (
               <div className="flex justify-between">
                 <span className="text-xs text-slate-500">Worker</span>
-                <span className="text-xs text-slate-300 font-mono truncate max-w-[120px]">{data.workerId}</span>
+                <span className="text-xs text-indigo-400 font-mono truncate max-w-[120px]">{data.workerId}</span>
               </div>
             )}
+            <div className="flex justify-between border-t border-slate-800 mt-1 pt-1">
+              <span className="text-xs text-slate-500">Created</span>
+              <span className="text-[10px] text-slate-400 font-mono">{new Date(data.createdAt || '').toLocaleString()}</span>
+            </div>
             {data.result && (
               <div className="flex flex-col gap-2 mt-2 border-t border-slate-800 pt-2 pointer-events-auto">
                 <div className="flex justify-between items-center">
@@ -223,7 +234,7 @@ const CustomDagNode: React.FC<CustomDagNodeProps> = ({ data }) => {
                     LOGS
                   </a>
                 </div>
-                <span className="text-xs text-slate-300 font-mono line-clamp-2 leading-relaxed">
+                <span className="text-xs text-slate-300 font-mono line-clamp-2 leading-relaxed bg-slate-800/40 p-1.5 rounded border border-white/5">
                   {data.result}
                 </span>
               </div>
@@ -236,3 +247,13 @@ const CustomDagNode: React.FC<CustomDagNodeProps> = ({ data }) => {
 };
 
 export default CustomDagNode;
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (remainingSeconds === 0) return `${minutes}m`;
+  return `${minutes}m ${remainingSeconds}s`;
+}

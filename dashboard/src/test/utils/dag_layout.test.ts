@@ -9,8 +9,8 @@ describe('dagLayout', () => {
       workflowName: 'Test',
       workflowStatus: 'DRAFT',
       nodes: [
-        { jobId: '1', label: 'Job 1', dagIndex: 0, status: 'PENDING', payload: '', result: null, workerId: null, createdAt: '', updatedAt: '' },
-        { jobId: '2', label: 'Job 2', dagIndex: 1, status: 'PENDING', payload: '', result: null, workerId: null, createdAt: '', updatedAt: '' },
+        { jobId: '1', label: 'Job 1', dagIndex: 0, status: 'PENDING', payload: '', result: null, workerId: null, timeoutMs: 60000, jobLabel: 'Job 1', createdAt: '', updatedAt: '' },
+        { jobId: '2', label: 'Job 2', dagIndex: 1, status: 'PENDING', payload: '', result: null, workerId: null, timeoutMs: 60000, jobLabel: 'Job 2', createdAt: '', updatedAt: '' },
       ],
       edges: [
         { sourceJobId: '1', targetJobId: '2' },
