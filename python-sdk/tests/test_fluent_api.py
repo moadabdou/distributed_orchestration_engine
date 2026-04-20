@@ -1,11 +1,11 @@
 import pytest
 import json
-from fernos import DAG, Job
+from fernos import DAG, PythonJob
 
 def test_dag_context_manager():
     with DAG(name="test_dag") as dag:
-        Job(label="job1", path="script1.py")
-        Job(label="job2", path="script2.py")
+        PythonJob(label="job1", script="print(1)")
+        PythonJob(label="job2", script="print(2)")
         
     assert len(dag.jobs) == 2
     labels = {j.label for j in dag.jobs}
@@ -13,9 +13,9 @@ def test_dag_context_manager():
     assert dag.name == "test_dag"
 
 def test_job_equality():
-    j1 = Job(label="job1", path="p1.py")
-    j1_dup = Job(label="job1", path="p1_different.py")
-    j2 = Job(label="job2", path="p2.py")
+    j1 = PythonJob(label="job1", script="p1")
+    j1_dup = PythonJob(label="job1", script="p1_different")
+    j2 = PythonJob(label="job2", script="p2")
     
     assert j1 == j1_dup
     assert j1 != j2
@@ -23,17 +23,17 @@ def test_job_equality():
 
 def test_dag_set_behavior():
     with DAG(name="test_set") as dag:
-        j1 = Job(label="job1", path="p1.py")
-        Job(label="job1", path="p1_dup.py") # Duplicate label
+        j1 = PythonJob(label="job1", script="p1")
+        PythonJob(label="job1", script="p1_dup") # Duplicate label
         
     assert len(dag.jobs) == 1
     assert list(dag.jobs)[0].label == "job1"
 
 def test_job_dependencies():
     with DAG(name="test_deps") as dag:
-        job1 = Job(label="job1", path="script1.py")
-        job2 = Job(label="job2", path="script2.py")
-        job3 = Job(label="job3", path="script3.py")
+        job1 = PythonJob(label="job1", script="s1")
+        job2 = PythonJob(label="job2", script="s2")
+        job3 = PythonJob(label="job3", script="s3")
         
         job1 >> job2
         job2 >> job3
@@ -44,8 +44,8 @@ def test_job_dependencies():
 
 def test_duplicate_dependencies():
     with DAG(name="test_dups") as dag:
-        j1 = Job(label="j1", path="p1.py")
-        j2 = Job(label="j2", path="p2.py")
+        j1 = PythonJob(label="j1", script="p1")
+        j2 = PythonJob(label="j2", script="p2")
         
         # Multiple links should be idempotent
         j1 >> j2
@@ -57,9 +57,9 @@ def test_duplicate_dependencies():
 
 def test_multi_dependency_chain():
     with DAG(name="test_chain") as dag:
-        j1 = Job(label="j1", path="p1.py")
-        j2 = Job(label="j2", path="p2.py")
-        j3 = Job(label="j3", path="p3.py")
+        j1 = PythonJob(label="j1", script="p1")
+        j2 = PythonJob(label="j2", script="p2")
+        j3 = PythonJob(label="j3", script="p3")
         
         j1 >> j2 >> j3
         
@@ -68,9 +68,9 @@ def test_multi_dependency_chain():
 
 def test_list_dependencies():
     with DAG(name="test_list") as dag:
-        j1 = Job(label="j1", path="p1.py")
-        j2 = Job(label="j2", path="p2.py")
-        j3 = Job(label="j3", path="p3.py")
+        j1 = PythonJob(label="j1", script="p1")
+        j2 = PythonJob(label="j2", script="p2")
+        j3 = PythonJob(label="j3", script="p3")
         
         j1 >> [j2, j3]
         
@@ -79,8 +79,8 @@ def test_list_dependencies():
 
 def test_serialization():
     with DAG(name="test_data", description="My test DAG") as dag:
-        job1 = Job(label="downloader", path="down.py")
-        job2 = Job(label="processor", path="proc.py", timeout_ms=60000)
+        job1 = PythonJob(label="downloader", script="down()")
+        job2 = PythonJob(label="processor", script="proc()", timeout_ms=60000)
         job1 >> job2
         
     data = dag.to_dict()
@@ -90,9 +90,9 @@ def test_serialization():
     
     # Check job definition
     proc_job = next(j for j in data["jobs"] if j["label"] == "processor")
-    assert proc_job["type"] == "PYTHON"
+    assert proc_job["type"] == "python"
     payload = json.loads(proc_job["payload"])
-    assert payload["scriptPath"] == "proc.py"
+    assert payload["script"] == "proc()"
     assert proc_job["timeoutMs"] == 60000
     
     # Check dependency edge
