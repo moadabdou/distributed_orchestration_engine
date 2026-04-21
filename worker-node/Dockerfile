@@ -72,6 +72,10 @@ RUN pip3 install --no-cache-dir \
 # Pre-download the embedding model to avoid runtime downloads during tests
 RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
+# ─── Install Fern-OS Python SDK ─────────────────────────────
+COPY python-sdk /tmp/python-sdk
+RUN pip3 install --no-cache-dir /tmp/python-sdk && rm -rf /tmp/python-sdk
+
 # Copy the fat JAR from the builder stage (explicit filename to avoid COPY glob ambiguity)
 COPY --from=builder /build/worker-node/target/worker-node-1.0.0-SNAPSHOT.jar app.jar
 

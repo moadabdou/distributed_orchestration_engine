@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -69,6 +70,24 @@ public interface JobRepository extends JpaRepository<JobEntity, UUID> {
      * @return list of matching jobs
      */
     List<JobEntity> findByWorkflowId(UUID workflowId);
+
+    /**
+     * Finds all jobs associated with a given workflow ID, with pagination support.
+     *
+     * @param workflowId the ID of the workflow
+     * @param pageable pagination information
+     * @return a page of matching jobs
+     */
+    Page<JobEntity> findByWorkflowId(UUID workflowId, Pageable pageable);
+
+    /**
+     * Finds a specific job by workflow ID and its label.
+     *
+     * @param workflowId the ID of the workflow
+     * @param jobLabel the label of the job
+     * @return an optional containing the job if found
+     */
+    Optional<JobEntity> findByWorkflowIdAndJobLabel(UUID workflowId, String jobLabel);
 
     /**
      * Counts all jobs associated with a given workflow ID.

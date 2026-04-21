@@ -37,7 +37,7 @@ public class JobControllerTest {
     void submitJob_ReturnsCreatedJob() throws Exception {
         UUID jobId = UUID.randomUUID();
         JobResponse mockResponse = new JobResponse(
-                jobId, JobStatus.PENDING, "{\"cmd\":\"echo hello\"}", null, null, null, 0, Instant.now(), Instant.now()
+                jobId, JobStatus.PENDING, "{\"cmd\":\"echo hello\"}", null, null, null, jobId, 0, Instant.now(), Instant.now()
         );
 
         Mockito.when(jobService.submitJob(any(JobRequest.class))).thenReturn(mockResponse);
@@ -55,7 +55,7 @@ public class JobControllerTest {
     void listJobs_ReturnsPaginatedJobs() throws Exception {
         UUID jobId = UUID.randomUUID();
         JobResponse mockResponse = new JobResponse(
-                jobId, JobStatus.PENDING, "{}", null, null, null, 0, Instant.now(), Instant.now()
+                jobId, JobStatus.PENDING, "{}", null, null, null, jobId, 0, Instant.now(), Instant.now()
         );
         Page<JobResponse> page = new PageImpl<>(List.of(mockResponse), PageRequest.of(0, 20), 1);
 
@@ -74,7 +74,7 @@ public class JobControllerTest {
     void getJob_ReturnsJobDetails() throws Exception {
         UUID jobId = UUID.randomUUID();
         JobResponse mockResponse = new JobResponse(
-                jobId, JobStatus.RUNNING, "{}", "Success", UUID.randomUUID(), null , 0, Instant.now(), Instant.now()
+                jobId, JobStatus.RUNNING, "{}", "Success", null, UUID.randomUUID(), null , 0, Instant.now(), Instant.now()
         );
 
         Mockito.when(jobService.getJob(jobId)).thenReturn(mockResponse);

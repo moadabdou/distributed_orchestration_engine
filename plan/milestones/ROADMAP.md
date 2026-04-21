@@ -16,6 +16,8 @@
 | **6** | [Dockerization & DevOps](milestone-6-dockerization-devops/details.md) | #029–#032 (4) | 3–4 days | M1–M5 |
 | **7** | [Testing & Production Hardening](milestone-7-testing-hardening/details.md) | #033–#037 (5) | 4–5 days | M1–M6 |
 | **8** | [Advanced Control Plane](milestone-8-advanced-control-plane/details.md) | #038–#041 (4) | 5–7 days | M1–M7 |
+| **9** | [Pluggable Executors & Advanced Job Types](milestone-9-pluggable-executors-advanced-job-types/details.md) | #042–#048 (7) | 6–8 days | M1–M8 |
+| **10** | [Python SDK & API Module](milestone-10-python-sdk-api-module/details.md) | #049–#054 (6) | 6–8 days | M1–M9 |
 
 ---
 
@@ -33,6 +35,9 @@ graph LR
     M4 --> M5
     M5 --> M6[M6: Dockerization]
     M6 --> M7[M7: Testing & Hardening]
+    M7 --> M8[M8: Advanced Control Plane]
+    M8 --> M9[M9: Pluggable Executors]
+    M9 --> M10[M10: Python SDK]
 ```
 
 ---
@@ -111,3 +116,24 @@ graph LR
 | [#039](milestone-8-advanced-control-plane/issue-039-visual-job-scheduling-management.md) | Visual Job Scheduling & Management | 🔴 High | 1.5d |
 | [#040](milestone-8-advanced-control-plane/issue-040-full-system-controls.md) | Full System Controls | 🟡 Medium | 1d |
 | [#041](milestone-8-advanced-control-plane/issue-041-ui-refinements.md) | UI Refinements (See and Fix) | 🟡 Medium | 1d |
+
+### Milestone 9 — Pluggable Executors & Advanced Job Types
+| Issue | Title | Priority | Estimate |
+|-------|-------|----------|----------|
+| [#042](milestone-9-pluggable-executors-advanced-job-types/issue-042-pluggable-executor-spi.md) | Pluggable Task Executor SPI | 🔴 High | 1.5d |
+| [#043](milestone-9-pluggable-executors-advanced-job-types/issue-043-python-operator.md) | Python Task Operator | 🔴 High | 1d |
+| [#044](milestone-9-pluggable-executors-advanced-job-types/issue-044-http-api-operator.md) | HTTP/API Operator | 🔴 High | 1d |
+| [#045](milestone-9-pluggable-executors-advanced-job-types/issue-045-sql-database-operator.md) | SQL/Database Operator | 🔴 High | 1d |
+| [#046](milestone-9-pluggable-executors-advanced-job-types/issue-046-docker-kubernetes-operator.md) | Docker/Kubernetes Operator | 🟡 Medium | 1d |
+| [#047](milestone-9-pluggable-executors-advanced-job-types/issue-047-sensor-trigger-operator.md) | Sensor/Trigger Operator | 🟡 Medium | 1d |
+| [#048](milestone-9-pluggable-executors-advanced-job-types/issue-048-result-passing-xcoms.md) | Result Passing (XComs) Infrastructure | 🔴 High | 1d |
+
+### Milestone 10 — Python SDK & API Module
+| Issue | Title | Priority | Estimate |
+|-------|-------|----------|----------|
+| [#049](milestone-10-python-sdk-api-module/issue-049-pure-text-log-api.md) | Pure Text Log API Endpoint | 🔴 High | 0.5d |
+| [#050](milestone-10-python-sdk-api-module/issue-050-fluent-python-workflow-api.md) | Fluent Python Workflow Definition API | 🔴 High | 1.5d |
+| [#051](milestone-10-python-sdk-api-module/issue-051-python-execution-client.md) | Python SDK Workflow Execution Client | 🔴 High | 1d |
+| [#052](milestone-10-python-sdk-api-module/issue-052-integrated-minio-xcom-utils.md) | Integrated MinIO & XCom Utilities | 🔴 High | 1d |
+| [#053](milestone-10-python-sdk-api-module/issue-053-sdk-developer-experience.md) | Python SDK CLI & Developer Tooling | 🟡 Medium | 1d |
+| [#054](milestone-10-python-sdk-api-module/issue-054-script-preprocessor-module-injection.md) | Script Preprocessor & Module Injection | 🔴 High | 1d |

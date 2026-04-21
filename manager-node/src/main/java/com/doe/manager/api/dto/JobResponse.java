@@ -7,6 +7,7 @@ import java.util.UUID;
 public record JobResponse(
         UUID id,
         JobStatus status,
+        String label,
         String payload,
         String result,
         UUID workerId,

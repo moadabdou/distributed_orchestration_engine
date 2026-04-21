@@ -2,6 +2,7 @@ package com.doe.manager.api.controller;
 
 import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.api.dto.*;
+import com.doe.manager.api.service.JobService;
 import com.doe.manager.api.service.WorkflowService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -19,9 +20,11 @@ import java.util.UUID;
 public class WorkflowController {
 
     private final WorkflowService workflowService;
+    private final JobService jobService;
 
-    public WorkflowController(WorkflowService workflowService) {
+    public WorkflowController(WorkflowService workflowService, JobService jobService) {
         this.workflowService = workflowService;
+        this.jobService = jobService;
     }
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
@@ -103,5 +106,24 @@ public class WorkflowController {
     @GetMapping("/{id}/dag")
     public DagGraphResponse getDag(@PathVariable("id") UUID id) {
         return workflowService.getDag(id);
+    }
+
+    // ── Jobs ─────────────────────────────────────────────────────────────────
+
+    /** GET /workflows/{id}/jobs — Get all jobs for this workflow */
+    @GetMapping("/{id}/jobs")
+    public Page<JobResponse> getWorkflowJobs(
+            @PathVariable("id") UUID id,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        return jobService.getJobsByWorkflow(id, page, size);
+    }
+
+    /** GET /workflows/{id}/jobs/{label} — Get a specific job by label */
+    @GetMapping("/{id}/jobs/{label}")
+    public JobResponse getWorkflowJobByLabel(
+            @PathVariable("id") UUID id,
+            @PathVariable("label") String label) {
+        return jobService.getJobByWorkflowAndLabel(id, label);
     }
 }

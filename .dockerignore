@@ -43,3 +43,12 @@ Dockerfile*
 
 # Qwen
 .qwen/
+
+# Python
+**/venv/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/dist/
+**/build/

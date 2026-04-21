@@ -64,8 +64,8 @@ public class WorkflowService {
 
         // Build a label → Job map (preserving insertion order for dagIndex)
         Map<String, Job> labelToJob = new LinkedHashMap<>();
-        List<com.doe.core.executor.JobDefinition> jobDefs = req.jobs();
-        for (com.doe.core.executor.JobDefinition def : jobDefs) {
+        List<JobDefinition> jobDefs = req.jobs();
+        for (JobDefinition def : jobDefs) {
             // If type is not provided at top level, it might be in the payload (legacy)
             // But we prefer it from the definition
             Job job = Job.newJob(def.payload())
@@ -300,7 +300,7 @@ public class WorkflowService {
         }
         // Check all labels are unique
         Set<String> seen = new HashSet<>();
-        for (com.doe.core.executor.JobDefinition def : req.jobs()) {
+        for (JobDefinition def : req.jobs()) {
             if (def.label() == null || def.label().isBlank()) {
                 throw new IllegalArgumentException("Each job must have a non-blank label");
             }
@@ -319,7 +319,7 @@ public class WorkflowService {
      */
     private Workflow buildWorkflowDomain(UUID workflowId, CreateWorkflowRequest req) {
         Map<String, Job> labelToJob = new LinkedHashMap<>();
-        for (com.doe.core.executor.JobDefinition def : req.jobs()) {
+        for (JobDefinition def : req.jobs()) {
             Job job = Job.newJob(def.payload())
                     .workflowId(workflowId)
                     .timeoutMs(def.timeoutMs() > 0 ? def.timeoutMs() : defaultJobTimeoutMs)

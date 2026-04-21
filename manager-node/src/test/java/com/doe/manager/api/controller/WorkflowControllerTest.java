@@ -3,6 +3,7 @@ package com.doe.manager.api.controller;
 import com.doe.core.model.JobStatus;
 import com.doe.core.model.WorkflowStatus;
 import com.doe.manager.api.dto.*;
+import com.doe.manager.api.service.JobService;
 import com.doe.manager.api.service.WorkflowService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -38,6 +39,9 @@ class WorkflowControllerTest {
 
     @MockBean
     private WorkflowService workflowService;
+
+    @MockBean
+    private JobService jobService;
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -251,6 +255,41 @@ class WorkflowControllerTest {
 
         mockMvc.perform(delete("/api/v1/workflows/{id}/xcom", id))
                 .andExpect(status().isNoContent());
+    }
+
+    // ── GET /api/v1/workflows/{id}/jobs ─────────────────────────────────────
+
+    @Test
+    void getWorkflowJobs_Returns200WithPaginatedJobs() throws Exception {
+        UUID workflowId = UUID.randomUUID();
+        JobResponse job = new JobResponse(
+                UUID.randomUUID(), JobStatus.PENDING, "payload", null,
+                null, workflowId, workflowId, 0, Instant.now(), Instant.now()
+        );
+        Page<JobResponse> page = new PageImpl<>(List.of(job), PageRequest.of(0, 20), 1);
+        Mockito.when(jobService.getJobsByWorkflow(workflowId, 0, 20)).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/workflows/{id}/jobs", workflowId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].workflowId").value(workflowId.toString()))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    // ── GET /api/v1/workflows/{id}/jobs/{label} ─────────────────────────────
+
+    @Test
+    void getWorkflowJobByLabel_Returns200WithJob() throws Exception {
+        UUID workflowId = UUID.randomUUID();
+        String label = "task-A";
+        JobResponse job = new JobResponse(
+                UUID.randomUUID(), JobStatus.RUNNING, "payload", null,
+                null, workflowId, workflowId, 0, Instant.now(), Instant.now()
+        );
+        Mockito.when(jobService.getJobByWorkflowAndLabel(workflowId, label)).thenReturn(job);
+
+        mockMvc.perform(get("/api/v1/workflows/{id}/jobs/{label}", workflowId, label))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowId").value(workflowId.toString()));
     }
 }
 

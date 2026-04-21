@@ -1,6 +1,5 @@
 package com.doe.manager.api.dto;
 
-import com.doe.core.executor.JobDefinition;
 import java.util.List;
 
 /**

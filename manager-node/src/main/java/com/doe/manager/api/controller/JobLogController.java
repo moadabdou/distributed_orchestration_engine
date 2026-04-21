@@ -3,37 +3,32 @@ package com.doe.manager.api.controller;
 import com.doe.manager.api.service.JobService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import java.util.List;
 import java.util.UUID;
+
+// current log system sucks under heavy load (log limited at 1mb )
+// TODO: implement a better log system
+// FIFO approach to keep the logs size constant and dont lose new logs {@ManagerServer} and {@WorkerNode} need to be edited as well
 
 @RestController
 @RequestMapping("/api/v1/logs/jobs")
 public class JobLogController {
 
     private final JobService jobService;
-    private static final Gson GSON = new Gson();
 
     public JobLogController(JobService jobService) {
         this.jobService = jobService;
     }
 
     @GetMapping(value = "/{id}", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> getJobLogs(@PathVariable("id") UUID id) {
-        String rawLogs = jobService.getJobLogs(id);
-        String formattedLogs;
-        try {
-            List<String> logLines = GSON.fromJson(rawLogs, new TypeToken<List<String>>(){}.getType());
-            formattedLogs = String.join("\n", logLines);
-        } catch (Exception e) {
-            formattedLogs = rawLogs;
-        }
+    public ResponseEntity<String> getJobLogs(
+            @PathVariable("id") UUID id,
+            @RequestParam(value = "start", required = false) Integer start,
+            @RequestParam(value = "length", required = false) Integer length) {
+        List<String> logLines = jobService.getJobLogs(id, start, length);
+        String formattedLogs = String.join("\n", logLines);
 
         String html = """
                 <!DOCTYPE html>
@@ -113,5 +108,14 @@ public class JobLogController {
                 </html>
                 """.formatted(id, id, formattedLogs);
         return ResponseEntity.ok(html);
+    }
+    
+    @GetMapping(value = "/{id}/raw", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> getJobLogsRaw(
+            @PathVariable("id") UUID id,
+            @RequestParam(value = "start", required = false) Integer start,
+            @RequestParam(value = "length", required = false) Integer length) {
+        List<String> logLines = jobService.getJobLogs(id, start, length);
+        return ResponseEntity.ok(String.join("\n", logLines));
     }
 }

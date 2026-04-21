@@ -611,6 +611,7 @@ public class WorkflowManager {
                             .workflowId(job.getWorkflowId())
                             .status(JobStatus.PENDING)
                             .timeoutMs(job.getTimeoutMs())
+                            .jobLabel(job.getJobLabel())
                             .createdAt(job.getCreatedAt())
                             .updatedAt(Instant.now())
                             .build();
