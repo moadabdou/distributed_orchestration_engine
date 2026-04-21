@@ -3,6 +3,7 @@ package com.doe.manager.server;
 import com.doe.core.event.EngineEventListener;
 import com.doe.core.model.Job;
 import com.doe.core.model.JobStatus;
+import com.doe.core.model.EventsConnection;
 import com.doe.core.model.WorkerConnection;
 import com.doe.core.protocol.Message;
 import com.doe.core.protocol.MessageType;
@@ -41,6 +42,9 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -76,6 +80,9 @@ public class ManagerServer implements SmartLifecycle {
     private final XComService xComService;
     private final List<WorkerDeathListener> workerDeathListeners = new CopyOnWriteArrayList<>();
     private final int defaultWorkerMaxCapacity;
+
+    private final ConcurrentMap<UUID, ConcurrentMap<String, UUID>> ownershipRegistry = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, ConcurrentMap<String, Set<EventsConnection>>> subscriptionRegistry = new ConcurrentHashMap<>();
 
     private volatile boolean running;
     private ServerSocket serverSocket;
@@ -155,8 +162,8 @@ public class ManagerServer implements SmartLifecycle {
             try {
                 Socket clientSocket = serverSocket.accept();
                 Thread.ofVirtual()
-                        .name("worker-handler-", Thread.currentThread().threadId())
-                        .start(() -> handleWorker(clientSocket));
+                        .name("connection-init-", Thread.currentThread().threadId())
+                        .start(() -> routeConnection(clientSocket));
             } catch (SocketException e) {
                 if (running) {
                     LOG.error("Error accepting connection", e);
@@ -170,27 +177,49 @@ public class ManagerServer implements SmartLifecycle {
         }
     }
 
+    private void routeConnection(Socket socket) {
+        try {
+            var inputStream = socket.getInputStream();
+            Message firstMessage = ProtocolDecoder.decode(inputStream);
+
+            if (firstMessage.type() == MessageType.REGISTER_WORKER) {
+                Thread.currentThread().setName("worker-handler-" + Thread.currentThread().threadId());
+                handleWorkerSession(socket, firstMessage);
+            } else if (firstMessage.type() == MessageType.REGISTER_JOB_EVENTS) {
+                Thread.currentThread().setName("events-handler-" + Thread.currentThread().threadId());
+                handleEventsSession(socket, firstMessage);
+            } else {
+                LOG.warn("Unexpected first message type from {}: {}. Closing connection.",
+                        socket.getRemoteSocketAddress(), firstMessage.type());
+                socket.close();
+            }
+        } catch (EOFException e) {
+            LOG.info("Client disconnected immediately (stream closed) before sending registration");
+            try { socket.close(); } catch (IOException ignored) {}
+        } catch (IOException e) {
+            LOG.error("I/O error accepting initial connection", e);
+            try { socket.close(); } catch (IOException ignored) {}
+        }
+    }
+
     /**
-     * Handles a single worker connection: reads messages in a loop and dispatches by type.
-     * <p>
-     * Each handler thread tracks its own {@link WorkerConnection} reference so that
-     * cleanup in the {@code finally} block only removes <em>its own</em> registry entry,
-     * preventing a stale thread from evicting a newer re-registration.
+     * Handles a single worker connection: processes the initial registration message,
+     * then reads further messages in a loop.
      */
-    private void handleWorker(Socket socket) {
+    private void handleWorkerSession(Socket socket, Message firstMessage) {
         UUID workerId = null;
         WorkerConnection localConnection = null;
         try (socket) {
             var inputStream = socket.getInputStream();
+            
+            // Process the first message immediately
+            localConnection = handleRegistration(firstMessage, socket);
+            workerId = localConnection.getId();
 
             while (running && !socket.isClosed()) {
                 Message message = ProtocolDecoder.decode(inputStream);
 
                 switch (message.type()) {
-                    case REGISTER_WORKER -> {
-                        localConnection = handleRegistration(message, socket);
-                        workerId = localConnection.getId();
-                    }
                     case HEARTBEAT -> {
                         if (workerId != null) {
                             handleHeartbeat(workerId, localConnection);
@@ -712,5 +741,122 @@ public class ManagerServer implements SmartLifecycle {
      */
     public boolean isRunning() {
         return running;
+    }
+
+    private void handleEventsSession(Socket socket, Message firstMessage) {
+        UUID jobId = null;
+        UUID workflowId = null;
+        EventsConnection connection = null;
+
+        try {
+            var in = socket.getInputStream();
+            var out = socket.getOutputStream();
+
+            JsonObject json = GSON.fromJson(firstMessage.payloadAsString(), JsonObject.class);
+            String authToken = json.has("auth_token") ? json.get("auth_token").getAsString() : null;
+            if (authToken == null || authToken.isBlank()) {
+                throw new IOException("Missing auth_token in event session");
+            }
+            
+            try {
+                String subject = Jwts.parser()
+                        .verifyWith(jwtSecretKey)
+                        .build()
+                        .parseSignedClaims(authToken)
+                        .getPayload()
+                        .getSubject();
+                jobId = UUID.fromString(subject);
+            } catch (JwtException | IllegalArgumentException e) {
+                throw new IOException("Invalid auth_token", e);
+            }
+
+            Job job = jobRegistry.get(jobId).orElse(null);
+            if (job == null) {
+                throw new IOException("Job not found: " + jobId);
+            }
+            workflowId = job.getWorkflowId();
+            
+            connection = new EventsConnection(workflowId, jobId, socket);
+            MDC.put("jobId", jobId.toString());
+            MDC.put("workflowId", workflowId.toString());
+
+            JsonObject ack = new JsonObject();
+            ack.addProperty("status", "events-registered");
+            ack.addProperty("jobId", jobId.toString());
+            out.write(ProtocolEncoder.encode(MessageType.REGISTER_ACK, GSON.toJson(ack)));
+            out.flush();
+
+            LOG.info("Events Session started for Job {} in Workflow {}", jobId, workflowId);
+
+            while (running && !socket.isClosed()) {
+                Message msg = ProtocolDecoder.decode(in);
+                JsonObject payload = GSON.fromJson(msg.payloadAsString(), JsonObject.class);
+                
+                switch (msg.type()) {
+                    case EVENT_REGISTER -> {
+                        String eventName = payload.get("eventName").getAsString();
+                        var workflowEvents = ownershipRegistry.computeIfAbsent(workflowId, k -> new ConcurrentHashMap<>());
+                        UUID existingOwner = workflowEvents.putIfAbsent(eventName, jobId);
+                        if (existingOwner != null && !existingOwner.equals(jobId)) {
+                            LOG.warn("Job {} tried to register event '{}' but owned by {}", jobId, eventName, existingOwner);
+                        } else {
+                            LOG.debug("Job {} registered event '{}'", jobId, eventName);
+                        }
+                    }
+                    case EVENT_SUBSCRIBE -> {
+                        String eventName = payload.get("eventName").getAsString();
+                        subscriptionRegistry
+                            .computeIfAbsent(workflowId, k -> new ConcurrentHashMap<>())
+                            .computeIfAbsent(eventName, k -> ConcurrentHashMap.newKeySet())
+                            .add(connection);
+                        LOG.debug("Job {} subscribed to '{}'", jobId, eventName);
+                    }
+                    case EVENT_PUBLISH -> {
+                        String eventName = payload.get("eventName").getAsString();
+                        var workflowEvents = ownershipRegistry.get(workflowId);
+                        if (workflowEvents == null || !jobId.equals(workflowEvents.get(eventName))) {
+                            LOG.warn("Job {} attempted to publish unowned event '{}'", jobId, eventName);
+                            continue;
+                        }
+
+                        var subscribersMap = subscriptionRegistry.get(workflowId);
+                        if (subscribersMap != null) {
+                            Set<EventsConnection> subscribers = subscribersMap.get(eventName);
+                            if (subscribers != null && !subscribers.isEmpty()) {
+                                byte[] notifyBytes = ProtocolEncoder.encode(MessageType.EVENT_NOTIFY, msg.payloadAsString());
+                                for (EventsConnection sub : subscribers) {
+                                    try {
+                                        sub.getSocket().getOutputStream().write(notifyBytes);
+                                        sub.getSocket().getOutputStream().flush();
+                                    } catch (IOException e) {
+                                        LOG.error("Failed to notify subscriber Job {}", sub.getJobId(), e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    default -> LOG.warn("Unexpected message type through Events channel: {}", msg.type());
+                }
+            }
+        } catch (EOFException e) {
+            LOG.debug("Events session disconnected (stream closed)");
+        } catch (SocketException e) {
+            if (running) {
+                LOG.debug("Events session connection reset: {}", e.getMessage());
+            }
+        } catch (IOException e) {
+            LOG.error("I/O error in Events channel", e);
+        } finally {
+            try { socket.close(); } catch (IOException ignored) {}
+            if (workflowId != null && connection != null) {
+                var wfSubs = subscriptionRegistry.get(workflowId);
+                if (wfSubs != null) {
+                    for (var eventSubs : wfSubs.values()) {
+                        eventSubs.remove(connection);
+                    }
+                }
+            }
+            MDC.clear();
+        }
     }
 }
