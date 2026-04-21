@@ -13,14 +13,15 @@ class CommunicationBridge:
     """
     _lock = threading.Lock()
     XCOM_PREFIX = "__FERN_CMD__Xcom:"
+    LOG_PREFIX = "__FERN_CMD__LOG:"
 
     @classmethod
     def write_log(cls, message: str):
         """
-        Thread-safe logging to stdout.
+        Thread-safe logging to stdout with fernos prefix.
         """
         with cls._lock:
-            sys.stdout.write(f"{message}\n")
+            sys.stdout.write(f"{cls.LOG_PREFIX}{message}\n")
             sys.stdout.flush()
 
     @classmethod

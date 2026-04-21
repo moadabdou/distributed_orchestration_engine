@@ -54,7 +54,7 @@ class DefaultExecutionContextTest {
     @Test
     @DisplayName("getBufferedLogsSize() returns correct cumulative size")
     void getBufferedLogsSize_returnsCorrectSize() {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "type", "{}", 1000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "type", "{}", 1000, 0, null);
         DefaultExecutionContext context = new DefaultExecutionContext(def, Collections.emptyMap(), Collections.emptyMap(), null);
         context.log("abc");
         context.log("defg");

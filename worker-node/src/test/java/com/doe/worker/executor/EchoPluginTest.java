@@ -31,7 +31,7 @@ class EchoPluginTest {
     @Test
     @DisplayName("missing 'data' field throws IllegalArgumentException")
     void execute_missingData_throws() {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "echo", "{}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "echo", "{}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertThrows(IllegalArgumentException.class,
                 () -> plugin.execute(context));

@@ -21,6 +21,7 @@ public class SubprocessBridge {
     private static final Logger LOG = LoggerFactory.getLogger(SubprocessBridge.class);
     private static final Gson GSON = new Gson();
     private static final String XCOM_CMD_PREFIX = "__FERN_CMD__Xcom:";
+    private static final String LOG_CMD_PREFIX = "__FERN_CMD__LOG:";
 
     private final Process process;
     private final ExecutionContext context;
@@ -61,8 +62,10 @@ public class SubprocessBridge {
                 if (line.startsWith(XCOM_CMD_PREFIX)) {
                     LOG.info("SubprocessBridge: Detected XCom command for job {}", jobId);
                     handleXComCommand(line.substring(XCOM_CMD_PREFIX.length()));
+                } else if (line.startsWith(LOG_CMD_PREFIX)) {
+                    context.log(line.substring(LOG_CMD_PREFIX.length()));
                 } else {
-                    context.log(line);
+                    LOG.debug("SubprocessBridge: Ignoring non-prefixed stdout line for job {}: {}", jobId, line);
                 }
             }
         } catch (IOException e) {

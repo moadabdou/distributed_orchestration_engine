@@ -31,7 +31,7 @@ class FibonacciPluginTest {
     @Test
     @DisplayName("excessive n throws IllegalArgumentException")
     void execute_limit_throws() {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "fibonacci", "{\"n\":100}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "fibonacci", "{\"n\":100}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertThrows(IllegalArgumentException.class,
                 () -> plugin.execute(context));

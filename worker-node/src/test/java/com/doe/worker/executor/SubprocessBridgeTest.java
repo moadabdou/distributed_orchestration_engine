@@ -106,8 +106,31 @@ class SubprocessBridgeTest {
 
         TimeUnit.MILLISECONDS.sleep(200);
 
-        verify(context).log("Hello World");
-        verify(context).log("Error occurred");
+        // Normal output should now be ignored by the context
+        verify(context, never()).log("Hello World");
+        verify(context, never()).log("Error occurred");
+        verify(xComClient, never()).push(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void testPrefixedOutputLogging() throws Exception {
+        String prefixedOutput = "__FERN_CMD__LOG:Important log message\n";
+        InputStream stdout = new ByteArrayInputStream(prefixedOutput.getBytes(StandardCharsets.UTF_8));
+        InputStream stderr = new ByteArrayInputStream(new byte[0]);
+        ByteArrayOutputStream stdin = new ByteArrayOutputStream();
+
+        when(process.getInputStream()).thenReturn(stdout);
+        when(process.getErrorStream()).thenReturn(stderr);
+        when(process.getOutputStream()).thenReturn(stdin);
+        when(process.isAlive()).thenReturn(true, false);
+
+        bridge = new SubprocessBridge(process, context, xComClient, jobId);
+        bridge.start();
+
+        TimeUnit.MILLISECONDS.sleep(200);
+
+        // Only the message part should be logged
+        verify(context).log("Important log message");
         verify(xComClient, never()).push(anyString(), anyString(), anyString());
     }
 }

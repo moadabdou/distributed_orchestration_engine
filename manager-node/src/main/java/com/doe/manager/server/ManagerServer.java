@@ -24,10 +24,8 @@ import org.slf4j.MDC;
 
 import com.doe.manager.security.JwtService;
 import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
-import javax.crypto.SecretKey;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -89,8 +87,6 @@ public class ManagerServer implements SmartLifecycle {
     private ServerSocket serverSocket;
     private ScheduledExecutorService monitorExecutor;
     private final JwtService jwtService;
-    private final SecretKey jwtSecretKey;
-
     /**
      * Creates a new ManagerServer using Spring constructor injection.
      */
@@ -128,7 +124,7 @@ public class ManagerServer implements SmartLifecycle {
         this.eventListener = eventListener;
         this.xComService = xComService;
         this.jwtService = jwtService;
-        this.jwtSecretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
         this.defaultWorkerMaxCapacity = defaultWorkerMaxCapacity;
         
         if (workerDeathListeners != null) {
