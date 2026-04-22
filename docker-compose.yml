@@ -32,7 +32,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fernos
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fernos?sslMode=verify-full
       SPRING_DATASOURCE_USERNAME: fernos_user
       SPRING_DATASOURCE_PASSWORD: fernos_pass
       MANAGER_SECURITY_JWT_SECRET: ${JWT_SECRET}
