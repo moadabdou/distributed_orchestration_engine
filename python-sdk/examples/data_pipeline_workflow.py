@@ -3,9 +3,7 @@ from fernos import DAG, PythonJob
 
 def create_data_pipeline_workflow():
     # Define a unique workflow name
-    dag = DAG("producer_consumer_pipeline_v1")
-
-    with dag:
+    with DAG("producer_consumer_pipeline_v1") as dag:
         # Define the 3 jobs
         # 1. Generator - The Producer
         generator = PythonJob(
