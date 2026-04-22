@@ -35,10 +35,16 @@ public class PythonTaskExecutor implements TaskExecutor {
         JsonObject json = GSON.fromJson(definition.payload(), JsonObject.class);
         validatePayload(json);
 
-        List<String> command = buildCommand(json);
+        // 1. Create a temporary workspace for the job
+        java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("job-py-" + definition.jobId() + "-");
+
+        
+        // 2. Resolve command
+        List<String> command = buildCommand(json, workspace);
         
         ProcessBuilder pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(true);
+        pb.directory(workspace.toFile());
+
 
         // Add environment variables from context
         pb.environment().putAll(context.getEnvVars());
@@ -60,9 +66,6 @@ public class PythonTaskExecutor implements TaskExecutor {
             throw new IllegalArgumentException("python job must have a positive timeoutMs, got: " + timeoutMs);
         }
 
-        // Create a temporary workspace for the job
-        java.nio.file.Path workspace = java.nio.file.Files.createTempDirectory("job-py-" + definition.jobId() + "-");
-        pb.directory(workspace.toFile());
 
         context.log("Executing Python in workspace: " + workspace);
         context.log("Command: " + String.join(" ", command));
@@ -102,7 +105,7 @@ public class PythonTaskExecutor implements TaskExecutor {
         }
     }
 
-    private List<String> buildCommand(JsonObject json) throws IOException {
+    private List<String> buildCommand(JsonObject json, Path workspace) throws IOException {
         List<String> command = new ArrayList<>();
 
         // 1. Determine interpreter
@@ -122,25 +125,23 @@ public class PythonTaskExecutor implements TaskExecutor {
 
         if (command.isEmpty()) {
             command.add(interpreter);
-        } else {
-            // conda run -n env python ...
         }
 
         // 2. Determine script/file/notebook
         if (json.has("notebook")) {
-            // Re-evaluate command for papermill if needed, or just use papermill directly
-            // For now, let's assume we use papermill command
             command.clear();
             command.add("papermill");
             command.add(json.get("notebook").getAsString());
             command.add("-"); // output to stdout
         } else if (json.has("script")) {
-            // Use -c for small scripts or write to temp file? -c is safer for small snippets
-            command.add("-c");
-            command.add(json.get("script").getAsString());
+            // Write script to a file in the workspace instead of using -c
+            Path scriptFile = workspace.resolve("job_script.py");
+            java.nio.file.Files.writeString(scriptFile, json.get("script").getAsString());
+            command.add(scriptFile.toString());
         } else if (json.has("file")) {
             command.add(json.get("file").getAsString());
         }
+
 
         // 3. Add arguments
         if (json.has("args")) {

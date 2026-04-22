@@ -421,9 +421,15 @@ class RemoteWorkflow:
 
 class FernOSClient:
     """Client for interacting with the Fern-OS Manager API."""
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: Optional[str] = None):
+        if not base_url:
+            host = os.environ.get("FERNOS_MANAGER_HOST", "localhost")
+            port = os.environ.get("FERNOS_MANAGER_HTTP_PORT", "8080")
+            base_url = f"http://{host}:{port}"
+            
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
+
 
     def _request(self, method, path, params=None, json=None, is_json=True):
         url = f"{self.base_url}{path}"

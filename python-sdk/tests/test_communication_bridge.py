@@ -74,7 +74,7 @@ class TestCommunicationBridge(unittest.TestCase):
 
         def log_thread():
             for i in range(50):
-                CommunicationBridge.write_log(f"LOG MESSAGE {i}")
+                CommunicationBridge.log(f"LOG MESSAGE {i}")
         
         def xcom_thread():
             for i in range(50):

@@ -149,8 +149,9 @@ class Events:
 
     def _init_client(self):
         host = os.environ.get("FERNOS_MANAGER_HOST", "localhost")
-        port = int(os.environ.get("FERNOS_MANAGER_PORT", "9090"))
+        port = int(os.environ.get("FERNOS_MANAGER_TCP_PORT", "9090"))
         token = os.environ.get("FERNOS_JOB_TOKEN")
+
         
         if token:
             self.client = EventsClient(host, port, token)

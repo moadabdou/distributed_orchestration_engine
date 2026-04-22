@@ -5,6 +5,6 @@ from .core import (
 )
 from .worker.xcom import XCom, xcom
 from .worker.events import Events, events
+from .worker.bridge import bridge
 from .storage import FernMiniIO
-
-__all__ = ["FernOSClient", "DAG", "Job", "PythonJob", "ShellJob", "SleepJob", "EchoJob", "FibonacciJob", "XCom", "xcom", "Events", "events", "FernMiniIO"]
+__all__ = ["FernOSClient", "DAG", "Job", "PythonJob", "ShellJob", "SleepJob", "EchoJob", "FibonacciJob", "XCom", "xcom", "Events", "events", "FernMiniIO", "bridge"]

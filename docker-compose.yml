@@ -58,7 +58,9 @@ services:
     environment:
       MANAGER_HOST: manager
       MANAGER_PORT: "9090"
+      MANAGER_HTTP_PORT: "8080"
       WORKER_AUTH_TOKEN: ${WORKER_AUTH_TOKEN:-}
+
       WORKER_DEV_MODE: "true"
       MANAGER_SECURITY_JWT_SECRET: ${JWT_SECRET}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}

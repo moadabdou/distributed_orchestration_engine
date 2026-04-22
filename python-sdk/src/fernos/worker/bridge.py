@@ -16,7 +16,7 @@ class CommunicationBridge:
     LOG_PREFIX = "__FERN_CMD__LOG:"
 
     @classmethod
-    def write_log(cls, message: str):
+    def log(cls, message: str):
         """
         Thread-safe logging to stdout with fernos prefix.
         """
