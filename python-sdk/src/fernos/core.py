@@ -332,7 +332,12 @@ class RemoteJob:
 
     @property
     def type(self) -> str:
-        return self._data["type"]
+        #type is merged to payload 
+        try:
+            payload = json.loads(self._data["payload"])
+        except:
+            return "unknown"
+        return payload.get("type", "unknown")
 
     @property
     def payload(self) -> str:

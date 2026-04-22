@@ -53,7 +53,11 @@ class XCom:
         try:
             response = json.loads(response_json)
             if response.get("status") == "SUCCESS":
-                return response.get("value")
+                #try to deserialize the value
+                try:
+                    return json.loads(response.get("value"))
+                except json.JSONDecodeError:
+                    return response.get("value")
             elif response.get("status") == "NOT_FOUND":
                 return None
             else:
