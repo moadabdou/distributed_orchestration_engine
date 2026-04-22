@@ -16,7 +16,13 @@ public enum MessageType {
     CANCEL_JOB((byte) 0x07),
     XCOM_REQUEST((byte) 0x08),
     XCOM_RESPONSE((byte) 0x09),
-    JOB_LOG((byte) 0x0A);
+    JOB_LOG((byte) 0x0A),
+    REGISTER_JOB_EVENTS((byte) 0x0B),
+    EVENT_REGISTER((byte) 0x0C),
+    EVENT_SUBSCRIBE((byte) 0x0D),
+    EVENT_PUBLISH((byte) 0x0E),
+    EVENT_NOTIFY((byte) 0x0F);
+
 
     private final byte code;
 

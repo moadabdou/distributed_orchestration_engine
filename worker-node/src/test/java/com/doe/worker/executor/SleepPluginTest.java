@@ -15,7 +15,7 @@ class SleepPluginTest {
     @Test
     @DisplayName("sleeps for the given ms")
     void execute_sleeps() throws Exception {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "sleep", "{\"ms\":10}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "sleep", "{\"ms\":10}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertEquals("slept 10ms", plugin.execute(context));
     }
@@ -23,7 +23,7 @@ class SleepPluginTest {
     @Test
     @DisplayName("negative ms throws IllegalArgumentException")
     void execute_negativeMs_throws() {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "sleep", "{\"ms\":-1}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "sleep", "{\"ms\":-1}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertThrows(IllegalArgumentException.class,
                 () -> plugin.execute(context));
@@ -32,7 +32,7 @@ class SleepPluginTest {
     @Test
     @DisplayName("missing 'ms' field throws IllegalArgumentException")
     void execute_missingMs_throws() {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "sleep", "{}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "sleep", "{}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertThrows(IllegalArgumentException.class,
                 () -> plugin.execute(context));

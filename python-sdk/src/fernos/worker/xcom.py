@@ -1,17 +1,15 @@
-import sys
 import json
 import logging
+from .bridge import CommunicationBridge
 
 LOG = logging.getLogger(__name__)
 
 class XCom:
     """
     XCom client for inter-job communication.
-    Works by communicating with the Java worker via stdout/stdin.
+    Works by communicating with the Java worker via stdout/stdin through a thread-safe bridge.
     """
     
-    CMD_PREFIX = "__FERN_CMD__Xcom:"
-
     def push(self, key: str, value: any, type: str = "message"):
         """
         Pushes a value to XCom.
@@ -28,14 +26,11 @@ class XCom:
             "type": type
         }
         
-        # Write command to stdout
-        sys.stdout.write(f"{self.CMD_PREFIX}{json.dumps(payload)}\n")
-        sys.stdout.flush()
+        # Dispatch request via bridge
+        ack = CommunicationBridge.request(payload)
         
-        # Wait for ACK on stdin
-        ack = sys.stdin.readline()
-        if ack.strip() != "ACK":
-            raise RuntimeError(f"Failed to receive ACK from worker for XCom push. Got: {ack.strip()}")
+        if ack != "ACK":
+            raise RuntimeError(f"Failed to receive ACK from worker for XCom push. Got: {ack}")
 
     def pull(self, key: str) -> any:
         """
@@ -52,14 +47,8 @@ class XCom:
             "key": key
         }
         
-        # Write command to stdout
-        sys.stdout.write(f"{self.CMD_PREFIX}{json.dumps(payload)}\n")
-        sys.stdout.flush()
-        
-        # Wait for response on stdin
-        response_json = sys.stdin.readline()
-        if not response_json:
-            raise RuntimeError("Failed to receive response from worker for XCom pull (EOF)")
+        # Dispatch request via bridge
+        response_json = CommunicationBridge.request(payload)
             
         try:
             response = json.loads(response_json)

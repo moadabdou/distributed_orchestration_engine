@@ -61,6 +61,9 @@ public final class DagValidator {
             if (wj.getDependencies().contains(wj.getJob().getId())) {
                 errors.add(DagValidationError.selfDependency(wj.getJob().getId()));
             }
+            if (wj.getDataDependencies().contains(wj.getJob().getId())) {
+                errors.add(DagValidationError.selfDependency(wj.getJob().getId()));
+            }
         }
         return errors;
     }
@@ -75,6 +78,11 @@ public final class DagValidator {
         List<DagValidationError> errors = new ArrayList<>();
         for (WorkflowJob wj : workflow.getJobs()) {
             for (UUID depId : wj.getDependencies()) {
+                if (!knownIds.contains(depId)) {
+                    errors.add(DagValidationError.missingDependency(wj.getJob().getId(), depId));
+                }
+            }
+            for (UUID depId : wj.getDataDependencies()) {
                 if (!knownIds.contains(depId)) {
                     errors.add(DagValidationError.missingDependency(wj.getJob().getId(), depId));
                 }

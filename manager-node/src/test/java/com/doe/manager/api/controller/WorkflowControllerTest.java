@@ -70,7 +70,8 @@ class WorkflowControllerTest {
                                     {"label":"A","payload":"task-A"},
                                     {"label":"B","payload":"task-B"}
                                   ],
-                                  "dependencies": [{"fromJobLabel":"A","toJobLabel":"B"}]
+                                  "dependencies": [{"fromJobLabel":"A","toJobLabel":"B"}],
+                                  "dataDependencies": []
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -143,7 +144,8 @@ class WorkflowControllerTest {
                                 {
                                   "name": "updated-workflow",
                                   "jobs": [{"label":"A","payload":"task-A"}],
-                                  "dependencies": []
+                                  "dependencies": [],
+                                  "dataDependencies": []
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -234,7 +236,8 @@ class WorkflowControllerTest {
                                 null, jobB, 0, null, Instant.now(), Instant.now()
                         )
                 ),
-                List.of(new DagGraphResponse.DagEdgeResponse(jobA, jobB))
+                List.of(new DagGraphResponse.DagEdgeResponse(jobA, jobB)),
+                List.of()
         );
 
         Mockito.when(workflowService.getDag(id)).thenReturn(dag);

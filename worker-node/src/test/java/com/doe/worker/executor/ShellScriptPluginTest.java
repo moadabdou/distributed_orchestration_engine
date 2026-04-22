@@ -15,7 +15,7 @@ class ShellScriptPluginTest {
     @Test
     @DisplayName("executes script and returns output")
     void execute_script() throws Exception {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "bash", "{\"script\":\"echo hello\"}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "bash", "{\"script\":\"echo hello\"}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertTrue(plugin.execute(context).contains("successfully"));
     }
@@ -23,7 +23,7 @@ class ShellScriptPluginTest {
     @Test
     @DisplayName("script failure throws Exception")
     void execute_failure() {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "bash", "{\"script\":\"exit 1\"}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "bash", "{\"script\":\"exit 1\"}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         assertThrows(Exception.class, () -> plugin.execute(context));
     }
@@ -31,7 +31,7 @@ class ShellScriptPluginTest {
     @Test
     @DisplayName("cancel kills the process")
     void cancel_killsProcess() throws Exception {
-        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "bash", "{\"script\":\"sleep 10\"}", 10000, 0);
+        JobDefinition def = new JobDefinition(UUID.randomUUID(), null, "test", "bash", "{\"script\":\"sleep 10\"}", 10000, 0, null);
         ExecutionContext context = new DefaultExecutionContext(def, null, null, null);
         
         Thread t = new Thread(() -> {

@@ -18,6 +18,9 @@
 | **8** | [Advanced Control Plane](milestone-8-advanced-control-plane/details.md) | #038–#041 (4) | 5–7 days | M1–M7 |
 | **9** | [Pluggable Executors & Advanced Job Types](milestone-9-pluggable-executors-advanced-job-types/details.md) | #042–#048 (7) | 6–8 days | M1–M8 |
 | **10** | [Python SDK & API Module](milestone-10-python-sdk-api-module/details.md) | #049–#054 (6) | 6–8 days | M1–M9 |
+| **11** | [Real-time Event System](milestone-11-real-time-event-system/details.md) | #055–#060 (6) | 6–8 days | M1–M10 |
+
+
 
 ---
 
@@ -38,7 +41,9 @@ graph LR
     M7 --> M8[M8: Advanced Control Plane]
     M8 --> M9[M9: Pluggable Executors]
     M9 --> M10[M10: Python SDK]
+    M10 --> M11[M11: Real-time Events]
 ```
+
 
 ---
 
@@ -137,3 +142,15 @@ graph LR
 | [#052](milestone-10-python-sdk-api-module/issue-052-integrated-minio-xcom-utils.md) | Integrated MinIO & XCom Utilities | 🔴 High | 1d |
 | [#053](milestone-10-python-sdk-api-module/issue-053-sdk-developer-experience.md) | Python SDK CLI & Developer Tooling | 🟡 Medium | 1d |
 | [#054](milestone-10-python-sdk-api-module/issue-054-script-preprocessor-module-injection.md) | Script Preprocessor & Module Injection | 🔴 High | 1d |
+
+### Milestone 11 — Real-time Event System
+| Issue | Title | Priority | Estimate |
+|-------|-------|----------|----------|
+| [#055](milestone-11-real-time-event-system/issue-055-protocol-extensions.md) | Core Protocol Extensions for Events | 🔴 High | 0.5d |
+| [#056](milestone-11-real-time-event-system/issue-056-manager-event-routing.md) | Manager-side Event Registration & Routing | 🔴 High | 1.5d |
+| [#057](milestone-11-real-time-event-system/issue-057-job-token-auth.md) | Job Token Generation & Authentication | 🔴 High | 1d |
+| [#058](milestone-11-real-time-event-system/issue-058-python-sdk-events.md) | Python SDK Events Client Implementation | 🔴 High | 1.5d |
+| [#059](milestone-11-real-time-event-system/issue-059-event-system-verification.md) | Event System Integration & Verification | 🟢 Low | 1d |
+| [#060](milestone-11-real-time-event-system/issue-060-data-flow-edges-ui.md) | Data Flow Edges Visualization (UI) | 🟡 Medium | 1d |
+
+

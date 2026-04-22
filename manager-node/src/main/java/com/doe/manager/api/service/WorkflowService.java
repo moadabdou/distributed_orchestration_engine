@@ -59,60 +59,10 @@ public class WorkflowService {
     public WorkflowResponse createWorkflow(CreateWorkflowRequest req) {
         validateCreateRequest(req);
 
-        // Generate workflow ID upfront so we can link jobs to it
+        // Generate workflow ID upfront
         UUID workflowId = UUID.randomUUID();
+        Workflow workflow = buildWorkflowDomain(workflowId, req);
 
-        // Build a label → Job map (preserving insertion order for dagIndex)
-        Map<String, Job> labelToJob = new LinkedHashMap<>();
-        List<JobDefinition> jobDefs = req.jobs();
-        for (JobDefinition def : jobDefs) {
-            // If type is not provided at top level, it might be in the payload (legacy)
-            // But we prefer it from the definition
-            Job job = Job.newJob(def.payload())
-                    .workflowId(workflowId)
-                    .timeoutMs(def.timeoutMs() > 0 ? def.timeoutMs() : defaultJobTimeoutMs)
-                    .retryCount(def.retryCount() > 0 ? def.retryCount() : 0)
-                    .jobLabel(def.label())
-                    .build();
-            labelToJob.put(def.label(), job);
-        }
-
-        // Resolve dependency edges (label → UUID)
-        List<CreateWorkflowRequest.DependencyEdge> edges =
-                req.dependencies() != null ? req.dependencies() : List.of();
-
-        Map<String, List<UUID>> labelToDeps = new HashMap<>();
-        for (CreateWorkflowRequest.DependencyEdge edge : edges) {
-            Job from = labelToJob.get(edge.fromJobLabel());
-            Job to   = labelToJob.get(edge.toJobLabel());
-            if (from == null) {
-                throw new WorkflowException(WorkflowErrorCode.MISSING_DEPENDENCY,
-                        "Dependency references unknown job label: " + edge.fromJobLabel());
-            }
-            if (to == null) {
-                throw new WorkflowException(WorkflowErrorCode.MISSING_DEPENDENCY,
-                        "Dependency references unknown job label: " + edge.toJobLabel());
-            }
-            // toJobLabel depends on fromJobLabel, so fromJobLabel is a prerequisite of toJobLabel
-            labelToDeps.computeIfAbsent(edge.toJobLabel(), k -> new ArrayList<>())
-                       .add(from.getId());
-        }
-
-        // Build WorkflowJobs
-        Workflow.Builder builder = Workflow.newWorkflow(req.name()).id(workflowId);
-        int idx = 0;
-        for (Map.Entry<String, Job> entry : labelToJob.entrySet()) {
-            String label = entry.getKey();
-            Job job = entry.getValue();
-            List<UUID> deps = labelToDeps.getOrDefault(label, List.of());
-            WorkflowJob wj = WorkflowJob.fromJob(job)
-                    .dagIndex(idx++)
-                    .dependencies(deps)
-                    .build();
-            builder.addJob(wj);
-        }
-
-        Workflow workflow = builder.build();
         Workflow registered = workflowManager.registerWorkflow(workflow);
 
         // Retrieve the persisted entity for the response (WorkflowPersistenceListener handles DB write)
@@ -161,7 +111,7 @@ public class WorkflowService {
         }
         // Reuse create logic to rebuild the domain model, then delegate to manager
         CreateWorkflowRequest asCreate = new CreateWorkflowRequest(
-                req.name(), req.jobs(), req.dependencies());
+                req.name(), req.jobs(), req.dependencies(), req.dataDependencies());
         Workflow rebuilt = buildWorkflowDomain(id, asCreate);
         Workflow updated = workflowManager.updateWorkflow(id, rebuilt);
         return toResponse(updated);
@@ -286,7 +236,12 @@ public class WorkflowService {
                         .map(depId -> new DagGraphResponse.DagEdgeResponse(depId, wj.getJob().getId())))
                 .collect(Collectors.toList());
 
-        return new DagGraphResponse(w.getId(), w.getName(), w.getStatus(), nodes, edges);
+        List<DagGraphResponse.DagEdgeResponse> dataEdges = w.getJobs().stream()
+                .flatMap(wj -> wj.getDataDependencies().stream()
+                        .map(depId -> new DagGraphResponse.DagEdgeResponse(depId, wj.getJob().getId())))
+                .collect(Collectors.toList());
+
+        return new DagGraphResponse(w.getId(), w.getName(), w.getStatus(), nodes, edges, dataEdges);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -343,13 +298,32 @@ public class WorkflowService {
                        .add(from.getId());
         }
 
+        List<CreateWorkflowRequest.DependencyEdge> dataEdgesReq =
+                req.dataDependencies() != null ? req.dataDependencies() : List.of();
+        Map<String, List<UUID>> labelToDataDeps = new HashMap<>();
+        for (CreateWorkflowRequest.DependencyEdge edge : dataEdgesReq) {
+            Job from = labelToJob.get(edge.fromJobLabel());
+            Job to   = labelToJob.get(edge.toJobLabel());
+            if (from == null || to == null) {
+                throw new WorkflowException(WorkflowErrorCode.MISSING_DEPENDENCY,
+                        "Data dependency references unknown job label: " + edge.fromJobLabel() + " -> " + edge.toJobLabel());
+            }
+            labelToDataDeps.computeIfAbsent(edge.toJobLabel(), k -> new ArrayList<>())
+                           .add(from.getId());
+        }
+
         Workflow.Builder builder = Workflow.newWorkflow(req.name()).id(workflowId);
         int idx = 0;
         for (Map.Entry<String, Job> entry : labelToJob.entrySet()) {
             String label = entry.getKey();
             Job job = entry.getValue();
             List<UUID> deps = labelToDeps.getOrDefault(label, List.of());
-            builder.addJob(WorkflowJob.fromJob(job).dagIndex(idx++).dependencies(deps).build());
+            List<UUID> dataDeps = labelToDataDeps.getOrDefault(label, List.of());
+            builder.addJob(WorkflowJob.fromJob(job)
+                    .dagIndex(idx++)
+                    .dependencies(deps)
+                    .dataDependencies(dataDeps)
+                    .build());
         }
         return builder.build();
     }

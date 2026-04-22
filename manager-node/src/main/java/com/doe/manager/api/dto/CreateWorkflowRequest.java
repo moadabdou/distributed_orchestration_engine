@@ -9,7 +9,8 @@ import java.util.List;
 public record CreateWorkflowRequest(
         String name,
         List<JobDefinition> jobs,
-        List<DependencyEdge> dependencies
+        List<DependencyEdge> dependencies,
+        List<DependencyEdge> dataDependencies
 ) {
 
     public record DependencyEdge(

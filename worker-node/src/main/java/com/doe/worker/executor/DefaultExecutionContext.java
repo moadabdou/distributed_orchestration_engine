@@ -45,6 +45,22 @@ public class DefaultExecutionContext implements ExecutionContext {
         return Collections.unmodifiableMap(vars);
     }
 
+    private static Map<String, String> loadManagerEnvVars() {
+        Map<String, String> vars = new HashMap<>();
+        // These are loaded from the worker context environment variables
+        // and passed to the job (e.g., Python SDK)
+        String host = System.getenv("MANAGER_HOST");
+        String tcpPort = System.getenv("MANAGER_PORT");           // TCP port (9090)
+        String httpPort = System.getenv("MANAGER_HTTP_PORT");    // REST port (8080)
+
+        if (host != null) vars.put("FERNOS_MANAGER_HOST", host);
+        if (tcpPort != null) vars.put("FERNOS_MANAGER_TCP_PORT", tcpPort);
+        if (httpPort != null) vars.put("FERNOS_MANAGER_HTTP_PORT", httpPort);
+
+        return Collections.unmodifiableMap(vars);
+    }
+
+
 
     public DefaultExecutionContext(JobDefinition definition, Map<String, String> envVars, Map<String, String> secrets, XComClient xComClient) {
         this(definition, envVars, secrets, xComClient, DEFAULT_MAX_LOG_SIZE);
@@ -52,16 +68,20 @@ public class DefaultExecutionContext implements ExecutionContext {
 
     public DefaultExecutionContext(JobDefinition definition, Map<String, String> envVars, Map<String, String> secrets, XComClient xComClient, long maxLogSize) {
         this.definition = definition;
-        // Merge provided envVars with defaults (like Minio)
-        this.envVars = merge(loadMinioEnvVars(), envVars);
+        // Merge provided envVars with defaults (Minio, Manager)
+        Map<String, String> defaultVars = merge(loadMinioEnvVars(), loadManagerEnvVars());
+        this.envVars = merge(defaultVars, envVars);
         // Note: secrets aren't currently handled in this simplified version, but we'll keep the param for future
+
         this.xComClient = xComClient;
         this.maxLogSize = maxLogSize;
     }
 
     private Map<String, String> merge(Map<String, String> base, Map<String, String> overrides) {
         Map<String, String> merged = new HashMap<>(base);
-        merged.putAll(overrides);
+        if (overrides != null) {
+            merged.putAll(overrides);
+        }
         return Collections.unmodifiableMap(merged);
     }
 

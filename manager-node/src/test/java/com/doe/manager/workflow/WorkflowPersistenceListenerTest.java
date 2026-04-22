@@ -4,9 +4,11 @@ import com.doe.core.model.Job;
 import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
 import com.doe.core.model.WorkflowStatus;
+import com.doe.manager.persistence.entity.DataDependencyEntity;
 import com.doe.manager.persistence.entity.JobDependencyEntity;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.entity.WorkflowEntity;
+import com.doe.manager.persistence.repository.DataDependencyRepository;
 import com.doe.manager.persistence.repository.JobDependencyRepository;
 import com.doe.manager.persistence.repository.JobRepository;
 import com.doe.manager.persistence.repository.WorkflowRepository;
@@ -54,6 +56,9 @@ class WorkflowPersistenceListenerTest {
     @Autowired
     private JobDependencyRepository jobDependencyRepository;
 
+    @Autowired
+    private DataDependencyRepository dataDependencyRepository;
+
     private WorkflowManager workflowManager;
     private WorkflowPersistenceListener listener;
 
@@ -64,11 +69,13 @@ class WorkflowPersistenceListenerTest {
                 workflowManager,
                 workflowRepository,
                 jobRepository,
-                jobDependencyRepository
+                jobDependencyRepository,
+                dataDependencyRepository
         );
         listener.init(); // registers listener
         
         jobDependencyRepository.deleteAll();
+        dataDependencyRepository.deleteAll();
         jobRepository.deleteAll();
         workflowRepository.deleteAll();
     }
@@ -114,5 +121,27 @@ class WorkflowPersistenceListenerTest {
         // Assert
         WorkflowEntity we = workflowRepository.findById(wf.getId()).orElse(null);
         assertThat(we.getStatus()).isEqualTo(WorkflowStatus.RUNNING);
+    }
+
+    @Test
+    void shouldPersistDataDependenciesOnRegister() {
+        // Arrange
+        Job job1 = Job.newJob("{}").timeoutMs(60000L).build();
+        Job job2 = Job.newJob("{}").timeoutMs(60000L).build();
+
+        WorkflowJob wj1 = WorkflowJob.fromJob(job1).dagIndex(0).build();
+        WorkflowJob wj2 = WorkflowJob.fromJob(job2).dagIndex(1)
+                .dataDependencies(List.of(job1.getId())).build();
+
+        Workflow wf = Workflow.newWorkflow("data-deps-wf").addJob(wj1).addJob(wj2).build();
+
+        // Act
+        workflowManager.registerWorkflow(wf);
+
+        // Assert
+        List<DataDependencyEntity> dataDeps = dataDependencyRepository.findAll();
+        assertThat(dataDeps).hasSize(1);
+        assertThat(dataDeps.get(0).getSourceJob().getId()).isEqualTo(job1.getId());
+        assertThat(dataDeps.get(0).getTargetJob().getId()).isEqualTo(job2.getId());
     }
 }

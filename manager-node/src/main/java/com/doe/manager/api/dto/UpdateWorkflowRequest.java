@@ -9,5 +9,6 @@ import java.util.List;
 public record UpdateWorkflowRequest(
         String name,
         List<JobDefinition> jobs,
-        List<CreateWorkflowRequest.DependencyEdge> dependencies
+        List<CreateWorkflowRequest.DependencyEdge> dependencies,
+        List<CreateWorkflowRequest.DependencyEdge> dataDependencies
 ) {}

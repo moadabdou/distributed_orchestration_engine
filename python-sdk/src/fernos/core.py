@@ -23,6 +23,16 @@ class JobGroup(list):
             job << other
         return other
 
+    def __le__(self, other: Union['Job', List['Job'], 'JobGroup']) -> Union['Job', 'JobGroup']:
+        for job in self:
+            job <= other
+        return other
+
+    def signals(self, other: Union['Job', List['Job'], 'JobGroup']) -> Union['Job', 'JobGroup']:
+        for job in self:
+            job.signals(other)
+        return other
+
 class DAGContext(threading.local):
     """Thread-local storage for the active DAG context."""
     active_dag: Optional['DAG'] = None
@@ -46,6 +56,7 @@ class Job:
         self.timeout_ms = timeout_ms
         self.retry_count = retry_count
         self.upstream: set[str] = set()
+        self.data_upstream: set[str] = set()
         
         # Register with the current DAG context if available
         current_dag = _get_current_dag()
@@ -142,6 +153,22 @@ class Job:
                 self.upstream.add(job.label)
         else:
             self.upstream.add(other.label)
+        return other
+
+    def __le__(self, other: Union['Job', List['Job'], 'JobGroup']) -> Union['Job', 'JobGroup']:
+        if isinstance(other, (list, JobGroup)):
+            for job in other:
+                self.data_upstream.add(job.label)
+        else:
+            self.data_upstream.add(other.label)
+        return self
+
+    def signals(self, other: Union['Job', List['Job'], 'JobGroup']) -> Union['Job', 'JobGroup']:
+        if isinstance(other, (list, JobGroup)):
+            for job in other:
+                job.data_upstream.add(self.label)
+        else:
+            other.data_upstream.add(self.label)
         return other
 
     def to_dict(self) -> Dict[str, Any]:
@@ -262,9 +289,15 @@ class DAG:
         jobs_data = [job.to_dict() for job in self.jobs]
         
         dependencies = []
+        data_dependencies = []
         for job in self.jobs:
             for up in job.upstream:
                 dependencies.append({
+                    "fromJobLabel": up,
+                    "toJobLabel": job.label
+                })
+            for up in job.data_upstream:
+                data_dependencies.append({
                     "fromJobLabel": up,
                     "toJobLabel": job.label
                 })
@@ -272,7 +305,8 @@ class DAG:
         return {
             "name": self.name,
             "jobs": jobs_data,
-            "dependencies": dependencies
+            "dependencies": dependencies,
+            "dataDependencies": data_dependencies
         }
 
 class RemoteJob:
@@ -421,9 +455,15 @@ class RemoteWorkflow:
 
 class FernOSClient:
     """Client for interacting with the Fern-OS Manager API."""
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: Optional[str] = None):
+        if not base_url:
+            host = os.environ.get("FERNOS_MANAGER_HOST", "localhost")
+            port = os.environ.get("FERNOS_MANAGER_HTTP_PORT", "8080")
+            base_url = f"http://{host}:{port}"
+            
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
+
 
     def _request(self, method, path, params=None, json=None, is_json=True):
         url = f"{self.base_url}{path}"

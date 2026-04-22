@@ -3,9 +3,11 @@ package com.doe.manager.workflow;
 import com.doe.core.model.Job;
 import com.doe.core.model.Workflow;
 import com.doe.core.model.WorkflowJob;
+import com.doe.manager.persistence.entity.DataDependencyEntity;
 import com.doe.manager.persistence.entity.JobDependencyEntity;
 import com.doe.manager.persistence.entity.JobEntity;
 import com.doe.manager.persistence.entity.WorkflowEntity;
+import com.doe.manager.persistence.repository.DataDependencyRepository;
 import com.doe.manager.persistence.repository.JobDependencyRepository;
 import com.doe.manager.persistence.repository.JobRepository;
 import com.doe.manager.persistence.repository.WorkflowRepository;
@@ -27,16 +29,19 @@ public class WorkflowPersistenceListener implements WorkflowEventListener {
     private final WorkflowRepository workflowRepository;
     private final JobRepository jobRepository;
     private final JobDependencyRepository jobDependencyRepository;
+    private final DataDependencyRepository dataDependencyRepository;
 
     public WorkflowPersistenceListener(
             WorkflowManager workflowManager,
             WorkflowRepository workflowRepository,
             JobRepository jobRepository,
-            JobDependencyRepository jobDependencyRepository) {
+            JobDependencyRepository jobDependencyRepository,
+            DataDependencyRepository dataDependencyRepository) {
         this.workflowManager = workflowManager;
         this.workflowRepository = workflowRepository;
         this.jobRepository = jobRepository;
         this.jobDependencyRepository = jobDependencyRepository;
+        this.dataDependencyRepository = dataDependencyRepository;
     }
 
     @PostConstruct
@@ -148,6 +153,11 @@ public class WorkflowPersistenceListener implements WorkflowEventListener {
                 JobDependencyEntity dependency = new JobDependencyEntity(dependent, dependsOn);
                 jobDependencyRepository.save(dependency);
             }
+            for (UUID depId : wj.getDataDependencies()) {
+                JobEntity dependsOn = jobRepository.findById(depId).orElseThrow();
+                DataDependencyEntity dependency = new DataDependencyEntity(dependsOn, dependent); // source, target
+                dataDependencyRepository.save(dependency);
+            }
         }
         LOG.debug("DB: Inserted workflow {} with {} jobs", workflow.getId(), workflow.getJobs().size());
     }
@@ -188,8 +198,10 @@ public class WorkflowPersistenceListener implements WorkflowEventListener {
             je.setUpdatedAt(Instant.now());
             jobRepository.save(je);
             
-            // Delete old dependencies containing this job as dependent
+            // Delete old dependencies containing this job
             jobDependencyRepository.deleteByDependentJobId(job.getId());
+            dataDependencyRepository.deleteBySourceJobId(job.getId());
+            dataDependencyRepository.deleteByTargetJobId(job.getId());
         }
 
         // Must flush / ensure dependencies are deleted before inserting new ones.
@@ -200,6 +212,11 @@ public class WorkflowPersistenceListener implements WorkflowEventListener {
                 JobEntity dependsOn = jobRepository.findById(depId).orElseThrow();
                 JobDependencyEntity dependency = new JobDependencyEntity(dependent, dependsOn);
                 jobDependencyRepository.save(dependency);
+            }
+            for (UUID depId : wj.getDataDependencies()) {
+                JobEntity dependsOn = jobRepository.findById(depId).orElseThrow();
+                DataDependencyEntity dependency = new DataDependencyEntity(dependsOn, dependent);
+                dataDependencyRepository.save(dependency);
             }
         }
     }

@@ -1,0 +1,147 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ------------------------< com.doe:manager-node >------------------------
+[INFO] Building Manager Node 1.0.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ manager-node ---
+[INFO] Copying 12 resources from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ manager-node ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ manager-node ---
+[INFO] Copying 2 resources from src/test/resources to target/test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ manager-node ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.3.1:test (default-test) @ manager-node ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.doe.manager.workflow.WorkflowPersistenceListenerTest
+{"@timestamp":"2026-04-22T12:57:17.694223315+01:00","@version":"1","message":"Image pull policy will be performed by: DefaultPullPolicy()","logger_name":"org.testcontainers.images.PullPolicy","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:17.703592735+01:00","@version":"1","message":"Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')","logger_name":"org.testcontainers.utility.ImageNameSubstitutor","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:17.725110176+01:00","@version":"1","message":"Testcontainers version: 1.20.6","logger_name":"org.testcontainers.DockerClientFactory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:17.838325626+01:00","@version":"1","message":"Loaded org.testcontainers.dockerclient.UnixSocketClientProviderStrategy from ~/.testcontainers.properties, will try it first","logger_name":"org.testcontainers.dockerclient.DockerClientProviderStrategy","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:18.36607026+01:00","@version":"1","message":"Found Docker environment with local Unix socket (unix:///var/run/docker.sock)","logger_name":"org.testcontainers.dockerclient.DockerClientProviderStrategy","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:18.367250799+01:00","@version":"1","message":"Docker host IP address is localhost","logger_name":"org.testcontainers.DockerClientFactory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:18.378539497+01:00","@version":"1","message":"Connected to docker: \n  Server Version: 29.4.0\n  API Version: 1.54\n  Operating System: CachyOS\n  Total Memory: 7661 MB","logger_name":"org.testcontainers.DockerClientFactory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:19.491521513+01:00","@version":"1","message":"Creating container for image: testcontainers/ryuk:0.11.0","logger_name":"tc.testcontainers/ryuk:0.11.0","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:19.494991411+01:00","@version":"1","message":"Failure when attempting to lookup auth config. Please ignore if you don't have images in an authenticated registry. Details: (dockerImageName: testcontainers/ryuk:0.11.0, configFile: /home/moadabdou/.docker/config.json, configEnv: DOCKER_AUTH_CONFIG). Falling back to docker-java default behaviour. Exception message: Status 404: No config supplied. Checked in order: /home/moadabdou/.docker/config.json (file not found), DOCKER_AUTH_CONFIG (not set)","logger_name":"org.testcontainers.utility.RegistryAuthLocator","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:19.798489869+01:00","@version":"1","message":"Container testcontainers/ryuk:0.11.0 is starting: c0657364fd6124ebf01acac14073463e01300256043207550af8fe3df942ff4b","logger_name":"tc.testcontainers/ryuk:0.11.0","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:20.110195206+01:00","@version":"1","message":"Container testcontainers/ryuk:0.11.0 started in PT0.618639688S","logger_name":"tc.testcontainers/ryuk:0.11.0","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:20.119531982+01:00","@version":"1","message":"Ryuk started - will monitor and terminate Testcontainers containers on JVM exit","logger_name":"org.testcontainers.utility.RyukResourceReaper","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:20.120214486+01:00","@version":"1","message":"Checking the system...","logger_name":"org.testcontainers.DockerClientFactory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:20.121283457+01:00","@version":"1","message":"✔︎ Docker server version should be at least 1.6.0","logger_name":"org.testcontainers.DockerClientFactory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:20.122863136+01:00","@version":"1","message":"Creating container for image: postgres:15-alpine","logger_name":"tc.postgres:15-alpine","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:20.334199994+01:00","@version":"1","message":"Container postgres:15-alpine is starting: 9c8f0556f446ed4a89fd33ae64c269df2c371cf490490fc2daf61bc0a1abe4f0","logger_name":"tc.postgres:15-alpine","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:24.67132908+01:00","@version":"1","message":"Container postgres:15-alpine started in PT4.548448886S","logger_name":"tc.postgres:15-alpine","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:24.672685521+01:00","@version":"1","message":"Container is started (JDBC URL: jdbc:postgresql://localhost:32907/doe-manager?loggerLevel=OFF)","logger_name":"tc.postgres:15-alpine","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:24.777047859+01:00","@version":"1","message":"Could not detect default configuration classes for test class [com.doe.manager.workflow.WorkflowPersistenceListenerTest]: WorkflowPersistenceListenerTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.","logger_name":"org.springframework.test.context.support.AnnotationConfigContextLoaderUtils","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:24.974243638+01:00","@version":"1","message":"Found @SpringBootConfiguration com.doe.manager.ManagerApplication for test class com.doe.manager.workflow.WorkflowPersistenceListenerTest","logger_name":"org.springframework.boot.test.context.SpringBootTestContextBootstrapper","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.3.4)
+
+{"@timestamp":"2026-04-22T12:57:25.485156041+01:00","@version":"1","message":"Starting WorkflowPersistenceListenerTest using Java 21.0.10 with PID 2058805 (started by moadabdou in /home/moadabdou/coding/serious_projects/distributed_orchestration_engine/manager-node)","logger_name":"com.doe.manager.workflow.WorkflowPersistenceListenerTest","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:25.48713813+01:00","@version":"1","message":"No active profile set, falling back to 1 default profile: \"default\"","logger_name":"com.doe.manager.workflow.WorkflowPersistenceListenerTest","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:25.992671424+01:00","@version":"1","message":"Bootstrapping Spring Data JPA repositories in DEFAULT mode.","logger_name":"org.springframework.data.repository.config.RepositoryConfigurationDelegate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.04747327+01:00","@version":"1","message":"Finished Spring Data repository scanning in 48 ms. Found 6 JPA repository interfaces.","logger_name":"org.springframework.data.repository.config.RepositoryConfigurationDelegate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.476801577+01:00","@version":"1","message":"HikariPool-1 - Starting...","logger_name":"com.zaxxer.hikari.HikariDataSource","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.645356228+01:00","@version":"1","message":"HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@31f5b923","logger_name":"com.zaxxer.hikari.pool.HikariPool","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.646660151+01:00","@version":"1","message":"HikariPool-1 - Start completed.","logger_name":"com.zaxxer.hikari.HikariDataSource","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.672183402+01:00","@version":"1","message":"Database: jdbc:postgresql://localhost:32907/doe-manager (PostgreSQL 15.17)","logger_name":"org.flywaydb.core.FlywayExecutor","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.699155302+01:00","@version":"1","message":"Schema history table \"public\".\"flyway_schema_history\" does not exist yet","logger_name":"org.flywaydb.core.internal.schemahistory.JdbcTableSchemaHistory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.70169135+01:00","@version":"1","message":"Successfully validated 10 migrations (execution time 00:00.013s)","logger_name":"org.flywaydb.core.internal.command.DbValidate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.714576627+01:00","@version":"1","message":"Creating Schema History table \"public\".\"flyway_schema_history\" ...","logger_name":"org.flywaydb.core.internal.schemahistory.JdbcTableSchemaHistory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.798773921+01:00","@version":"1","message":"Current version of schema \"public\": << Empty Schema >>","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.809634114+01:00","@version":"1","message":"Migrating schema \"public\" to version \"1 - create tables\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.842356217+01:00","@version":"1","message":"Migrating schema \"public\" to version \"2 - concurrent worker capacity\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.857906097+01:00","@version":"1","message":"Migrating schema \"public\" to version \"3 - create workflows\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.870379582+01:00","@version":"1","message":"Migrating schema \"public\" to version \"4 - add workflow to jobs\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.879178526+01:00","@version":"1","message":"Migrating schema \"public\" to version \"5 - create job dependencies\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.889260953+01:00","@version":"1","message":"Migrating schema \"public\" to version \"6 - auto workflow index\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.897560615+01:00","@version":"1","message":"Migrating schema \"public\" to version \"7 - add skipped status to jobs\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.90831933+01:00","@version":"1","message":"Migrating schema \"public\" to version \"8 - create xcoms table\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.920086676+01:00","@version":"1","message":"Migrating schema \"public\" to version \"9 - add timeout ms and label to jobs\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.927506969+01:00","@version":"1","message":"Migrating schema \"public\" to version \"10 - create data dependencies\"","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:26.94031027+01:00","@version":"1","message":"Successfully applied 10 migrations to schema \"public\", now at version v10 (execution time 00:00.056s)","logger_name":"org.flywaydb.core.internal.command.DbMigrate","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.031885956+01:00","@version":"1","message":"HHH000204: Processing PersistenceUnitInfo [name: default]","logger_name":"org.hibernate.jpa.internal.util.LogHelper","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.081030879+01:00","@version":"1","message":"HHH000412: Hibernate ORM core version 6.5.3.Final","logger_name":"org.hibernate.Version","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.109017842+01:00","@version":"1","message":"HHH000026: Second-level cache disabled","logger_name":"org.hibernate.cache.internal.RegionFactoryInitiator","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.309720407+01:00","@version":"1","message":"No LoadTimeWeaver setup: ignoring JPA class transformer","logger_name":"org.springframework.orm.jpa.persistenceunit.SpringPersistenceUnitInfo","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.347552477+01:00","@version":"1","message":"HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)","logger_name":"org.hibernate.orm.deprecation","thread_name":"main","level":"WARN","level_value":30000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.951494535+01:00","@version":"1","message":"HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)","logger_name":"org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:27.989489705+01:00","@version":"1","message":"Initialized JPA EntityManagerFactory for persistence unit 'default'","logger_name":"org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:28.240241635+01:00","@version":"1","message":"Hibernate is in classpath; If applicable, HQL parser will be used.","logger_name":"org.springframework.data.jpa.repository.query.QueryEnhancerFactory","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:28.759863454+01:00","@version":"1","message":"Started WorkflowPersistenceListenerTest in 3.707 seconds (process running for 11.946)","logger_name":"com.doe.manager.workflow.WorkflowPersistenceListenerTest","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (/home/moadabdou/.m2/repository/net/bytebuddy/byte-buddy-agent/1.14.19/byte-buddy-agent-1.14.19.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+{"@timestamp":"2026-04-22T12:57:29.266441494+01:00","@version":"1","message":"WorkflowPersistenceListener registered to WorkflowManager","logger_name":"com.doe.manager.workflow.WorkflowPersistenceListener","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+Hibernate: select jde1_0.dependent_job_id,jde1_0.depends_on_id from job_dependencies jde1_0
+Hibernate: select dde1_0.source_job_id,dde1_0.target_job_id from data_dependencies dde1_0
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0
+Hibernate: select we1_0.id,we1_0.created_at,we1_0.name,we1_0.status,we1_0.updated_at from workflows we1_0
+Hibernate: select we1_0.id,we1_0.created_at,we1_0.name,we1_0.status,we1_0.updated_at from workflows we1_0 where we1_0.id=?
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0 where je1_0.id=?
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0 where je1_0.id=?
+Hibernate: select jde1_0.dependent_job_id,jde1_0.depends_on_id from job_dependencies jde1_0 where (jde1_0.dependent_job_id,jde1_0.depends_on_id) in ((?,?))
+Hibernate: insert into workflows (created_at,name,status,updated_at,id) values (?,?,?,?,?)
+Hibernate: insert into jobs (created_at,dag_index,job_label,payload,result,retry_count,status,timeout_ms,updated_at,worker_id,workflow_id,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: insert into jobs (created_at,dag_index,job_label,payload,result,retry_count,status,timeout_ms,updated_at,worker_id,workflow_id,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: insert into job_dependencies (dependent_job_id,depends_on_id) values (?,?)
+Hibernate: delete from workflows where id=?
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0 where je1_0.workflow_id=?
+Hibernate: select jde1_0.dependent_job_id,jde1_0.depends_on_id from job_dependencies jde1_0 where jde1_0.dependent_job_id=?
+{"@timestamp":"2026-04-22T12:57:29.489158293+01:00","@version":"1","message":"WorkflowPersistenceListener registered to WorkflowManager","logger_name":"com.doe.manager.workflow.WorkflowPersistenceListener","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+Hibernate: select jde1_0.dependent_job_id,jde1_0.depends_on_id from job_dependencies jde1_0
+Hibernate: select dde1_0.source_job_id,dde1_0.target_job_id from data_dependencies dde1_0
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0
+Hibernate: select we1_0.id,we1_0.created_at,we1_0.name,we1_0.status,we1_0.updated_at from workflows we1_0
+Hibernate: select we1_0.id,we1_0.created_at,we1_0.name,we1_0.status,we1_0.updated_at from workflows we1_0 where we1_0.id=?
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0 where je1_0.id=?
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0 where je1_0.id=?
+Hibernate: select dde1_0.source_job_id,dde1_0.target_job_id from data_dependencies dde1_0 where (dde1_0.source_job_id,dde1_0.target_job_id) in ((?,?))
+Hibernate: insert into workflows (created_at,name,status,updated_at,id) values (?,?,?,?,?)
+Hibernate: insert into jobs (created_at,dag_index,job_label,payload,result,retry_count,status,timeout_ms,updated_at,worker_id,workflow_id,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: insert into jobs (created_at,dag_index,job_label,payload,result,retry_count,status,timeout_ms,updated_at,worker_id,workflow_id,id) values (?,?,?,?,?,?,?,?,?,?,?,?)
+Hibernate: insert into data_dependencies (source_job_id,target_job_id) values (?,?)
+Hibernate: delete from workflows where id=?
+Hibernate: select dde1_0.source_job_id,dde1_0.target_job_id from data_dependencies dde1_0
+{"@timestamp":"2026-04-22T12:57:29.514734608+01:00","@version":"1","message":"WorkflowPersistenceListener registered to WorkflowManager","logger_name":"com.doe.manager.workflow.WorkflowPersistenceListener","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+Hibernate: select jde1_0.dependent_job_id,jde1_0.depends_on_id from job_dependencies jde1_0
+Hibernate: select dde1_0.source_job_id,dde1_0.target_job_id from data_dependencies dde1_0
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0
+Hibernate: select we1_0.id,we1_0.created_at,we1_0.name,we1_0.status,we1_0.updated_at from workflows we1_0
+Hibernate: select we1_0.id,we1_0.created_at,we1_0.name,we1_0.status,we1_0.updated_at from workflows we1_0 where we1_0.id=?
+Hibernate: select je1_0.id,je1_0.created_at,je1_0.dag_index,je1_0.job_label,je1_0.payload,je1_0.result,je1_0.retry_count,je1_0.status,je1_0.timeout_ms,je1_0.updated_at,je1_0.worker_id,je1_0.workflow_id from jobs je1_0 where je1_0.id=?
+{"@timestamp":"2026-04-22T12:57:29.52665596+01:00","@version":"1","message":"executeWorkflow called for workflowId=2ff3d563-f701-4f11-b225-8e4614fdd178","logger_name":"com.doe.manager.workflow.WorkflowManager","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:29.526994175+01:00","@version":"1","message":"executeWorkflow: Current status of workflow 2ff3d563-f701-4f11-b225-8e4614fdd178 is DRAFT","logger_name":"com.doe.manager.workflow.WorkflowManager","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:29.527116146+01:00","@version":"1","message":"executeWorkflow: Changing workflow 2ff3d563-f701-4f11-b225-8e4614fdd178 status to RUNNING","logger_name":"com.doe.manager.workflow.WorkflowManager","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+{"@timestamp":"2026-04-22T12:57:29.528378669+01:00","@version":"1","message":"executeWorkflow: Workflow 2ff3d563-f701-4f11-b225-8e4614fdd178 successfully executed","logger_name":"com.doe.manager.workflow.WorkflowManager","thread_name":"main","level":"INFO","level_value":20000,"application":"worker-node"}
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.24 s -- in com.doe.manager.workflow.WorkflowPersistenceListenerTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  15.631 s
+[INFO] Finished at: 2026-04-22T12:57:30+01:00
+[INFO] ------------------------------------------------------------------------

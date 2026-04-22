@@ -8,6 +8,7 @@ import com.doe.manager.scheduler.JobQueue;
 import com.doe.manager.scheduler.JobScheduler;
 import com.doe.manager.scheduler.CrashRecoveryHandler;
 import com.doe.manager.scheduler.JobTimeoutMonitor;
+import com.doe.manager.security.JwtService;
 import com.doe.manager.workflow.XComService;
 
 import org.mockito.Mockito;
@@ -35,14 +36,16 @@ public class TestManagerServerBuilder {
     public static ManagerServer build(int port, long check, long timeout) {
         WorkerRegistry registry = new WorkerRegistry();
         XComService xComService = Mockito.mock(XComService.class);
+        String secret = "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z";
+        JwtService jwtService = new JwtService(secret);
         JobRegistry jobRegistry = new JobRegistry();
         JobQueue jobQueue = new JobQueue(jobRegistry);
-        JobScheduler jobScheduler = new JobScheduler(jobQueue, registry, NO_OP_LISTENER);
+        JobScheduler jobScheduler = new JobScheduler(jobQueue, registry, NO_OP_LISTENER, jwtService);
         CrashRecoveryHandler recoveryHandler = new CrashRecoveryHandler(jobRegistry, jobQueue, NO_OP_LISTENER);
         JobTimeoutMonitor jobTimeoutMonitor = new JobTimeoutMonitor(jobRegistry, recoveryHandler);
         DagScheduler dagScheduler = Mockito.mock(DagScheduler.class);
-        return new ManagerServer(port, check, timeout, "3c34e62a26514757c2c159851f50a80d46dddc7fa0a06df5c689f928e4e9b94z", 4, registry, jobRegistry, dagScheduler, jobScheduler, jobTimeoutMonitor,
-                NO_OP_LISTENER, xComService, List.of(recoveryHandler));
+        return new ManagerServer(port, check, timeout, secret, 4, registry, jobRegistry, dagScheduler, jobScheduler, jobTimeoutMonitor,
+                NO_OP_LISTENER, xComService, jwtService, List.of(recoveryHandler));
     }
 
     public static ManagerServer build(int port) {

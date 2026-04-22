@@ -34,9 +34,17 @@ def run_xcom_storage_example():
         workflow = client.register_dag(dag)
         print(f"[SDK] Workflow registered. ID: {workflow.id}")
 
+        time.sleep(10)  # Let it start
+
+        workflow.pause()
+        print(f"[SDK] Workflow paused. Status: {workflow.status}")
+        time.sleep(5)
+        workflow.resume()
+        print(f"[SDK] Workflow resumed. Status: {workflow.status}")
+
         # 5. Wait for completion
         print("[SDK] Waiting for completion...")
-        workflow.wait_for_completion(timeout_sec=60)
+        workflow.wait_for_completion(timeout_sec=120)
         print(f"[SDK] Final Status: {workflow.status}")
 
         # 6. Display Logs

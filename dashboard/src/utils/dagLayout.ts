@@ -27,10 +27,20 @@ export const applyDagLayout = (graph: DagGraph): DagNode[] => {
     dagreGraph.setNode(node.jobId, { width: NODE_WIDTH, height: NODE_HEIGHT });
   });
 
-  // Add edges deterministically
+  // Add control flow edges
   sortedEdges.forEach((edge) => {
     dagreGraph.setEdge(edge.sourceJobId, edge.targetJobId);
   });
+
+  // Add data flow edges (optional: could use different weights if supported/needed)
+  if (graph.dataEdges) {
+    graph.dataEdges.forEach((edge) => {
+      // Only add if not already present as control edge to avoid redundant constraint
+      if (!dagreGraph.hasEdge(edge.sourceJobId, edge.targetJobId)) {
+        dagreGraph.setEdge(edge.sourceJobId, edge.targetJobId);
+      }
+    });
+  }
 
   // Apply layout
   dagre.layout(dagreGraph);

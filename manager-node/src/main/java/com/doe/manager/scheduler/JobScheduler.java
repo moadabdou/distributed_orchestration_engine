@@ -7,6 +7,7 @@ import com.doe.core.model.WorkerConnection;
 import com.doe.core.protocol.MessageType;
 import com.doe.core.protocol.ProtocolEncoder;
 import com.doe.core.registry.WorkerRegistry;
+import com.doe.manager.security.JwtService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -53,13 +54,15 @@ public class JobScheduler {
     private final JobQueue queue;
     private final WorkerRegistry registry;
     private final EngineEventListener eventListener;
+    private final JwtService jwtService;
     private volatile boolean running;
     private Thread schedulerThread;
 
-    public JobScheduler(JobQueue queue, WorkerRegistry registry, EngineEventListener eventListener) {
+    public JobScheduler(JobQueue queue, WorkerRegistry registry, EngineEventListener eventListener, JwtService jwtService) {
         this.queue    = queue;
         this.registry = registry;
         this.eventListener = eventListener;
+        this.jwtService = jwtService;
     }
 
     /**
@@ -160,6 +163,11 @@ public class JobScheduler {
                     envelope.addProperty("workflowId", job.getWorkflowId().toString());
                 }
                 envelope.addProperty("timeoutMs", job.getTimeoutMs());
+                
+                // Generate and include job token for event system authentication
+                String jobToken = jwtService.generateJobToken(job.getWorkflowId(), job.getId());
+                envelope.addProperty("job_token", jobToken);
+
                 // Embed the original payload as a nested JSON element (not a double-encoded string)
                 envelope.add("payload", JsonParser.parseString(job.getPayload()));
 

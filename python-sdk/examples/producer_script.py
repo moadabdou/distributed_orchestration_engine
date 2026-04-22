@@ -1,11 +1,14 @@
 import io
+import time
 from fernos import xcom
 
 # @fernos_include
 from common_utils import get_storage
 
 def produce():
-    print("--- Producer Operation ---")
+    print("--- Producer Operation ---", flush=True)
+
+    time.sleep(30)
     
     # 1. Push a simple message via XCom
     xcom.push("handshake", "Hello from producer!")

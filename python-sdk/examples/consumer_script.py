@@ -1,11 +1,14 @@
 from fernos import xcom
+import time
 
 # @fernos_include
 from common_utils import get_storage
 
 def consume():
     print("--- Consumer Operation ---")
-    
+
+    time.sleep(30)  # Simulate some startup delay
+
     handshake = xcom.pull("handshake")
     print(f"Received handshake: {handshake}")
     

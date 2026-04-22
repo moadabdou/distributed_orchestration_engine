@@ -13,5 +13,6 @@ public record JobDefinition(
     String type, 
     String payload, 
     long timeoutMs,
-    int retryCount
+    int retryCount,
+    String jobToken
 ) {}

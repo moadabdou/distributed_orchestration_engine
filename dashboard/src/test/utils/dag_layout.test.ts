@@ -15,6 +15,7 @@ describe('dagLayout', () => {
       edges: [
         { sourceJobId: '1', targetJobId: '2' },
       ],
+      dataEdges: [],
     };
 
     const laidOutNodes = applyDagLayout(graph);

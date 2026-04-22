@@ -84,4 +84,5 @@ export interface DagGraph {
   workflowStatus: Workflow['status'];
   nodes: DagNode[];
   edges: DagEdge[];
+  dataEdges: DagEdge[];
 }

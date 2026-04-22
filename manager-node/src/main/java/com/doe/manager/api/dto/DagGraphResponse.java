@@ -15,7 +15,8 @@ public record DagGraphResponse(
         String workflowName,
         WorkflowStatus workflowStatus,
         List<DagNodeResponse> nodes,
-        List<DagEdgeResponse> edges
+        List<DagEdgeResponse> edges,
+        List<DagEdgeResponse> dataEdges
 ) {
 
     public record DagNodeResponse(

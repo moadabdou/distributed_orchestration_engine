@@ -10,7 +10,8 @@ import { applyDagLayout } from '../utils/dagLayout';
 import CustomDagNode from './CustomDagNode';
 import { 
   GripHorizontal, GitMerge, Play, Pause, RotateCcw, Trash2, Loader2,
-  CheckCircle2, XCircle, Clock, PlayCircle, SkipForward, Ban, List
+  CheckCircle2, XCircle, Clock, PlayCircle, SkipForward, Ban, List,
+  Database, Eye, EyeOff
 } from 'lucide-react';
 
 const nodeTypes = {
@@ -29,6 +30,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
   const navigate = useNavigate();
   const { dag, isLoading, error } = useWorkflowDag(workflowId || '');
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const [showDataEdges, setShowDataEdges] = useState(true);
   const isDragging = useRef(false);
   const startY = useRef(0);
   const startH = useRef(0);
@@ -120,7 +122,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
     const nodeStatusMap = new Map<string, string>();
     dag.nodes.forEach(n => nodeStatusMap.set(n.jobId, n.status));
 
-    const newEdges = dag.edges.map((e: DagEdge) => {
+    const controlEdges = dag.edges.map((e: DagEdge) => {
       const sourceStatus = nodeStatusMap.get(e.sourceJobId);
       const targetStatus = nodeStatusMap.get(e.targetJobId);
 
@@ -154,7 +156,7 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
       }
 
       return {
-        id: `${e.sourceJobId}-${e.targetJobId}`,
+        id: `control-${e.sourceJobId}-${e.targetJobId}`,
         source: e.sourceJobId,
         target: e.targetJobId,
         type: 'smoothstep',
@@ -164,8 +166,21 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
       };
     });
 
-    setEdges(newEdges);
-  }, [dag, setNodes, setEdges]);
+    const dataEdges = showDataEdges && dag.dataEdges ? dag.dataEdges.map((e: DagEdge) => ({
+      id: `data-${e.sourceJobId}-${e.targetJobId}`,
+      source: e.sourceJobId,
+      target: e.targetJobId,
+      type: 'smoothstep',
+      animated: true,
+      style: { 
+        stroke: 'rgba(167, 139, 250, 0.6)', 
+        strokeWidth: 2,
+        strokeDasharray: '6,4'
+      },
+    })) : [];
+
+    setEdges([...controlEdges, ...dataEdges]);
+  }, [dag, setNodes, setEdges, showDataEdges]);
 
   // Handle 404 Not Found - clear memory and navigate home
   useEffect(() => {
@@ -268,6 +283,23 @@ const DagPreviewPanel: React.FC<DagPreviewPanelProps> = ({ workflowId }) => {
                     {isRemoving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                   </button>
                 )}
+              </div>
+              
+              {/* Data Flow Toggle */}
+              <div className="flex items-center gap-1 border-r border-white/10 pr-3">
+                <button
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-all duration-200 ${
+                    showDataEdges 
+                      ? 'bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20' 
+                      : 'bg-slate-700/30 text-slate-500 hover:bg-slate-700/50'
+                  }`}
+                  onClick={() => setShowDataEdges(!showDataEdges)}
+                  title={showDataEdges ? "Hide Data Flow" : "Show Data Flow"}
+                >
+                  <Database className={`w-3.5 h-3.5 ${showDataEdges ? 'animate-pulse' : ''}`} />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">Data Flow</span>
+                  {showDataEdges ? <Eye className="w-2.5 h-2.5 ml-0.5" /> : <EyeOff className="w-2.5 h-2.5 ml-0.5" />}
+                </button>
               </div>
               <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${getStatusChipStyle(dag.workflowStatus)}`}>
                 {dag.workflowStatus}

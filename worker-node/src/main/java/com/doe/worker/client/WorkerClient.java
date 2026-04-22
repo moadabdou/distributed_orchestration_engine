@@ -321,6 +321,7 @@ public class WorkerClient {
         UUID uuid = "unknown".equals(jobIdStr) ? UUID.randomUUID() : UUID.fromString(jobIdStr);
         
         UUID workflowId = envelope.has("workflowId") ? UUID.fromString(envelope.get("workflowId").getAsString()) : null;
+        String jobToken = envelope.has("job_token") ? envelope.get("job_token").getAsString() : null;
 
         // Extract payload and remove "type" field
         JsonObject payloadObj = envelope.has("payload") ? envelope.get("payload").getAsJsonObject() : new JsonObject();
@@ -361,7 +362,8 @@ public class WorkerClient {
                 type,
                 cleanedPayload,
                 timeoutMs,
-                envelope.has("retryCount") ? envelope.get("retryCount").getAsInt() : 0
+                envelope.has("retryCount") ? envelope.get("retryCount").getAsInt() : 0,
+                jobToken
         );
         
         XComClient xComClient = workflowId != null 

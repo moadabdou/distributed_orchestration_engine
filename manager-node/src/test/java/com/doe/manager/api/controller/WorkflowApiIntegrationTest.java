@@ -64,7 +64,8 @@ class WorkflowApiIntegrationTest {
                     {"label":"A","payload":"{\\"task\\":\\"A\\"}"},
                     {"label":"B","payload":"{\\"task\\":\\"B\\"}"}
                   ],
-                  "dependencies": [{"fromJobLabel":"A","toJobLabel":"B"}]
+                  "dependencies": [{"fromJobLabel":"A","toJobLabel":"B"}],
+                  "dataDependencies": []
                 }
                 """.formatted(name);
     }
@@ -85,7 +86,8 @@ class WorkflowApiIntegrationTest {
                     {"fromJobLabel":"A","toJobLabel":"C"},
                     {"fromJobLabel":"B","toJobLabel":"D"},
                     {"fromJobLabel":"C","toJobLabel":"D"}
-                  ]
+                  ],
+                  "dataDependencies": []
                 }
                 """.formatted(name);
     }
@@ -194,7 +196,8 @@ class WorkflowApiIntegrationTest {
                 {
                   "name": "updated-workflow",
                   "jobs": [{"label":"X","payload":"{\\"task\\":\\"X\\"}"}],
-                  "dependencies": []
+                  "dependencies": [],
+                  "dataDependencies": []
                 }
                 """;
 
@@ -256,5 +259,34 @@ class WorkflowApiIntegrationTest {
 
         assertThat(nodes).hasSize(2);   // A and B
         assertThat(edges).hasSize(1);   // A → B
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getDag_WithDataDependencies_ReturnsDataEdges() {
+        String body = """
+                {
+                  "name": "data-edge-test",
+                  "jobs": [
+                    {"label":"Src","payload":"{\\"task\\":\\"Src\\"}"},
+                    {"label":"Tgt","payload":"{\\"task\\":\\"Tgt\\"}"}
+                  ],
+                  "dependencies": [],
+                  "dataDependencies": [{"fromJobLabel":"Src","toJobLabel":"Tgt"}]
+                }
+                """;
+        Map<String, Object> created = createWorkflow(body);
+        UUID workflowId = UUID.fromString((String) created.get("id"));
+
+        ResponseEntity<Map> resp = rest.getForEntity(
+                BASE + "/" + workflowId + "/dag", Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<String, Object> dag = resp.getBody();
+        java.util.List<?> edges = (java.util.List<?>) dag.get("edges");
+        java.util.List<?> dataEdges = (java.util.List<?>) dag.get("dataEdges");
+
+        assertThat(edges).isEmpty();
+        assertThat(dataEdges).hasSize(1);
     }
 }

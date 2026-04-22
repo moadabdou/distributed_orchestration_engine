@@ -618,6 +618,7 @@ public class WorkflowManager {
                     return WorkflowJob.fromJob(resetJob)
                             .dagIndex(wj.getDagIndex())
                             .dependencies(wj.getDependencies())
+                            .dataDependencies(wj.getDataDependencies())
                             .build();
                 })
                 .collect(Collectors.toList());

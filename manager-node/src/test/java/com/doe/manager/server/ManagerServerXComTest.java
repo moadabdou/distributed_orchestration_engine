@@ -5,6 +5,7 @@ import com.doe.core.model.WorkerConnection;
 import com.doe.core.protocol.Message;
 import com.doe.core.registry.JobRegistry;
 import com.doe.core.registry.WorkerRegistry;
+import com.doe.manager.security.JwtService;
 import com.doe.manager.workflow.XComService;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -33,9 +34,10 @@ class ManagerServerXComTest {
         xComService = mock(XComService.class);
         jobRegistry = mock(JobRegistry.class);
         
-        // port, heartbeatCheck, heartbeatTimeout, jwtSecret, defaultCapacity, registry, jobRegistry, dagScheduler, jobScheduler, timeoutMonitor, eventListener, xComService, deathListeners
-        server = new ManagerServer(9090, 5000, 15000, "my-super-secret-key-that-is-long-enough-for-hmac", 4, 
-                mock(WorkerRegistry.class), jobRegistry, null, null, null, null, xComService, null);
+        // port, heartbeatCheck, heartbeatTimeout, jwtSecret, defaultCapacity, registry, jobRegistry, dagScheduler, jobScheduler, timeoutMonitor, eventListener, xComService, jwtService, deathListeners
+        String secret = "my-super-secret-key-that-is-long-enough-for-hmac";
+        server = new ManagerServer(9090, 5000, 15000, secret, 4, 
+                mock(WorkerRegistry.class), jobRegistry, null, null, null, null, xComService, new JwtService(secret), null);
         
         connection = mock(WorkerConnection.class);
         socket = mock(Socket.class);

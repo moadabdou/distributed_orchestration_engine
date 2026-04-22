@@ -7,7 +7,7 @@ server:
 spring:
   datasource:
     # MUST DEFINE DB_HOST IN ENVIRONMENT VARIABLES FOR DOCKER COMPOSE 
-    url: jdbc:postgresql://${DB_HOST:localhost}:5432/fernos
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/fernos?sslMode=verify-full
     username: root
     password: root
     driver-class-name: org.postgresql.Driver
